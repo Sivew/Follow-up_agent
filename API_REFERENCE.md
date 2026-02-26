@@ -18,7 +18,7 @@ That file contains:
 | Method | Endpoint | Purpose |
 |--------|----------|---------|
 | `GET` | `/context/{identifier}?by=phone_normalized` | Get customer context by phone |
-| `POST` | `/context/{context_id}/update` | Update conversation state |
+| `POST` | `/context/{customer_id}/update` | Update conversation state |
 | `POST` | `/log` | Log inbound/outbound messages |
 | `POST` | `/customers` | Create new customer |
 | `GET` | `/customers` | List all customers |

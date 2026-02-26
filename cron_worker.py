@@ -110,7 +110,7 @@ def process_conversations():
                     context_id=context_id,
                     metadata={"twilio_sid": sid, "type": "auto_followup_1"}
                 )
-                db_client.update_conversation(context_id=context_id, intent="FOLLOWUP_1", summary=f"Auto-sent Follow-up #1")
+                db_client.update_conversation(customer_id=customer_id, intent="FOLLOWUP_1", summary=f"Auto-sent Follow-up #1")
 
         # Logic: FOLLOWUP_1 -> FOLLOWUP_2
         elif intent == "FOLLOWUP_1" and hours_since_last >= THRESHOLD_FOLLOWUP_2_HOURS:
@@ -128,12 +128,12 @@ def process_conversations():
                     context_id=context_id,
                     metadata={"twilio_sid": sid, "type": "auto_followup_2"}
                 )
-                db_client.update_conversation(context_id=context_id, intent="FOLLOWUP_2", summary=f"Auto-sent Follow-up #2")
+                db_client.update_conversation(customer_id=customer_id, intent="FOLLOWUP_2", summary=f"Auto-sent Follow-up #2")
 
         # Logic: FOLLOWUP_2 -> NURTURE
         elif intent == "FOLLOWUP_2" and hours_since_last >= THRESHOLD_FOLLOWUP_2_HOURS:
             print(f"💤 Moving {context_id} to NURTURE")
-            db_client.update_conversation(context_id=context_id, intent="NURTURE", summary="Moved to Nurture (unresponsive)")
+            db_client.update_conversation(customer_id=customer_id, intent="NURTURE", summary="Moved to Nurture (unresponsive)")
 
 if __name__ == "__main__":
     process_conversations()

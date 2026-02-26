@@ -33,7 +33,7 @@ Content-Type: application/json
 | `POST` | `/customers/upsert` | Create or update customer by email |
 | | | **CONTEXT** |
 | `GET` | `/context/{identifier}` | Get conversation context by ID/email/phone |
-| `POST` | `/context/{context_id}/update` | Update conversation details |
+| `POST` | `/context/{customer_id}/update` | Update conversation details |
 | | | **MESSAGES** |
 | `POST` | `/log` | Log a new message (creates conversation if needed) |
 | `GET` | `/messages` | List/search messages |
