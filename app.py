@@ -208,7 +208,6 @@ def handle_incoming_sms():
 
     # 5. Outbound Log & State Update
     try:
-        # Log Reply
         db_client.log_message(
             customer_id=customer_id,
             channel="sms",
@@ -217,37 +216,38 @@ def handle_incoming_sms():
             body=reply_text,
             context_id=context_id
         )
-        
-        # Update Context
+    except Exception as e:
+        print(f"DEBUG: Failed to log outbound message: {e}")
+
+    try:
         history = context_data.get('history', [])
         current_summary = context_data.get('summary', '')
         new_summary = update_conversation_state(current_summary, history, body, reply_text)
-        
+
         db_client.update_conversation(
             context_id=context_id,
             summary=new_summary,
             last_agent_action="AI Replied via SMS"
         )
-
-        # 6. Response Construction (Smart Splitting)
-        resp = MessagingResponse()
-        
-        # Split message if > 160 chars to avoid carrier truncation issues
-        # Ideally keep under 1600 total (Twilio limit), but split into 160-char chunks for delivery order
-        # Using 320 to allow slightly longer cohesive thoughts per bubble if carrier supports concatenation
-        # But for safety and UX, 160-200 is a good visual breakpoint.
-        
-        # NOTE: textwrap.wrap returns a list of strings
-        chunks = textwrap.wrap(reply_text, width=300, break_long_words=False, replace_whitespace=False)
-        
-        for chunk in chunks:
-            resp.message(chunk)
-            
-        return str(resp)
-
     except Exception as e:
-        print(f"DEBUG: Update Error: {e}")
-        return str(MessagingResponse())
+        print(f"DEBUG: Failed to update conversation context: {e}")
+
+    # 6. Response Construction (Smart Splitting)
+    # Always build and return response - don't let DB errors prevent SMS delivery
+    resp = MessagingResponse()
+    
+    # Split message if > 160 chars to avoid carrier truncation issues
+    # Ideally keep under 1600 total (Twilio limit), but split into 160-char chunks for delivery order
+    # Using 320 to allow slightly longer cohesive thoughts per bubble if carrier supports concatenation
+    # But for safety and UX, 160-200 is a good visual breakpoint.
+    
+    # NOTE: textwrap.wrap returns a list of strings
+    chunks = textwrap.wrap(reply_text, width=300, break_long_words=False, replace_whitespace=False)
+    
+    for chunk in chunks:
+        resp.message(chunk)
+        
+    return str(resp)
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5000))
