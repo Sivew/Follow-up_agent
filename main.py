@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import os
 import requests
 from dotenv import load_dotenv
+from sarah_db_client import SarahDBClient
 
 load_dotenv()
 
@@ -14,6 +15,9 @@ TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
 TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 
+# Initialize Client
+db_client = SarahDBClient(api_key=API_KEY)
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({"status": "ok", "service": "sms-automation"}), 200
@@ -22,18 +26,53 @@ def health_check():
 def handle_incoming_sms():
     """
     Webhook for incoming SMS messages (e.g., from Twilio).
-    1. Validate request (optional signature check)
-    2. Extract sender, body
-    3. Log to Core API
-    4. Process logic (e.g., AI reply, escalation)
-    5. Return TwiML or empty response
+    1. Log to Core API
+    2. Reset state to ENGAGED (stop auto-followups)
     """
     data = request.form
     sender = data.get('From')
     body = data.get('Body')
     
-    # TODO: Implement core logic here
-    # Example: response = process_message(sender, body)
+    if not sender or not body:
+        return "Missing sender or body", 400
+
+    try:
+        # 1. Get Context (to find customer_id)
+        # Note: API Guide says use phone_normalized for lookup
+        # Twilio sends E.164 which is usually normalized (+1415...)
+        context = db_client.get_context(sender, lookup_by="phone_normalized")
+        customer_id = context.get('customer_id')
+        context_id = context.get('context_id')
+
+        if not customer_id:
+            print(f"Unknown customer {sender}. Creating new customer...")
+            # Create new customer if not found
+            new_cust = db_client.create_customer(phone=sender, phone_normalized=sender)
+            customer_id = new_cust.get('customer_id')
+
+        # 2. Log Message
+        log_resp = db_client.log_message(
+            customer_id=customer_id,
+            channel="sms",
+            identifier=sender,
+            direction="inbound",
+            body=body,
+            context_id=context_id
+        )
+        
+        # 3. Update State -> ENGAGED
+        # This stops the cron worker from sending follow-ups
+        if context_id:
+            db_client.update_conversation(
+                context_id=context_id,
+                intent="ENGAGED",
+                summary=f"User replied: {body[:50]}..."
+            )
+            print(f"✅ Reset state to ENGAGED for context {context_id}")
+
+    except Exception as e:
+        print(f"❌ Error processing inbound SMS: {e}")
+        return str(e), 500
     
     return "", 200  # Acknowledge receipt
 
