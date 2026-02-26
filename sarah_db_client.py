@@ -142,7 +142,7 @@ class SarahDBClient:
         if not payload:
             return {"status": "no_changes"}
 
-        url = f"{self.BASE_URL}/conversation/{context_id}/update"
+        url = f"{self.BASE_URL}/context/{context_id}/update"
         
         try:
             resp = requests.post(url, json=payload, headers=self.headers, timeout=10)
