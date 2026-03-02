@@ -24,17 +24,32 @@ This guide explains how to set up Make.com scenarios for the Voice AI integratio
 
 ## Setup Steps
 
-### Step 1: Create HTTP Module Connection
+### Step 1: Configure HTTP Module (Correct Way)
 
-1. Login to Make.com
-2. Create a new scenario or import the provided JSON
-3. Add an HTTP module for API calls
-4. Configure authentication:
-   - Authentication Type: "API Key"
-   - Header Name: `x-api-key`
-   - API Key: Your `CORE_API_KEY`
-   - Header Name 2: `Content-Type`
-   - Value 2: `application/json`
+This is the most critical step. Many users get this wrong.
+
+1. **Add HTTP module** to your scenario
+2. **DO NOT** use the "Authentication" dropdown for API key
+3. Instead, configure it like this:
+
+```
+HTTP Module Configuration:
+├── Method: GET (or POST)
+├── URL: https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{phone_number}}?by=phone_normalized
+├──
+├── Headers (click "Show advanced settings" if needed):
+│   ├── x-api-key: your_actual_api_key_here
+│   └── Content-Type: application/json
+│
+└── Body type: (for POST only)
+    └── raw
+```
+
+**IMPORTANT - Common Mistakes:**
+- ❌ Don't select "API Key" in Authentication dropdown
+- ❌ Don't select "AWS Signature" - that's for AWS services
+- ✅ Set Authentication to **"None"**
+- ✅ Add headers manually in the Headers section
 
 ### Step 2: Set Up Webhooks
 
@@ -142,9 +157,20 @@ Vapi Webhook → Parse JSON → HTTP POST /log → HTTP POST /context/update →
 
 ## Common Issues
 
-### 403 Forbidden
-- Verify API key has permissions
-- Check API URL is correct
+### 403 Forbidden - AWS Signature Error
+**Error:** `Authorization header requires 'Credential' parameter`
+**Cause:** Make.com is trying to use AWS authentication
+**Fix:** 
+- Set Authentication dropdown to **"None"**
+- Add headers manually (see Step 1 above)
+
+### 403 Forbidden - Missing Token
+**Error:** `Missing Authentication Token`
+**Cause:** API key not being passed correctly
+**Fix:**
+- Verify Authentication is set to **"None"**
+- Check header name is exactly `x-api-key` (lowercase, with hyphen)
+- Make sure header value is your actual API key (not empty, not wrapped in {{}})
 
 ### Customer Not Found
 - Ensure phone number format matches (use normalized)
