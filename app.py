@@ -112,8 +112,8 @@ def generate_smart_reply(context_data, user_input):
 
 def update_conversation_state(old_summary, history, user_input, ai_reply):
     """
-    Update Summary AND Intent/Sentiment based on the exchange.
-    Returns a dict with {summary, intent, sentiment}
+    Update Summary AND Sentiment based on the exchange.
+    Returns a dict with {summary, sentiment}
     """
     prompt = f"""
     Analyze this conversation exchange and update the CRM records.
@@ -123,10 +123,11 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
     **Sarah Reply:** "{ai_reply}"
     
     **Task:**
-    Return a JSON string with 3 fields:
-    1. "summary": Updated concise summary of the whole chat.
-    2. "intent": The user's current goal (e.g., pricing_inquiry, technical_question, booking_request, frustration).
-    3. "sentiment": User's emotional state (positive, neutral, negative, confused).
+    Return a JSON object with 2 fields:
+    1. "summary": Updated concise summary of the whole chat. Include the user's conversational intent (e.g., pricing_inquiry, technical_question) inside this text.
+    2. "sentiment": User's emotional state (positive, neutral, negative, confused).
+    
+    Do NOT use Markdown formatting (like ```json). Just return the raw JSON braces.
     """
 
     try:
@@ -134,7 +135,8 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
         completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=150
+            max_tokens=150,
+            temperature=0.3
         )
         response_text = completion.choices[0].message.content.strip()
         
@@ -150,27 +152,26 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
             
             # Extract fields
             summary_text = parsed_data.get("summary", old_summary)
-            intent_val = parsed_data.get("intent")
-            sentiment_val = parsed_data.get("sentiment")
+            sentiment_val = parsed_data.get("sentiment", "neutral")
             
-            # Combine into a single text string for the summary field
-            combined_summary = summary_text
-            if intent_val and sentiment_val:
-                combined_summary += f" [Intent: {intent_val} | Sentiment: {sentiment_val}]"
-            elif intent_val:
-                combined_summary += f" [Intent: {intent_val}]"
-            elif sentiment_val:
-                combined_summary += f" [Sentiment: {sentiment_val}]"
-
-            return combined_summary
+            return {
+                "summary": summary_text,
+                "sentiment": sentiment_val
+            }
         except json.JSONDecodeError:
             print(f"DEBUG: Failed to parse JSON from AI: {response_text}")
             # Fallback: Just return the raw text as summary if it wasn't valid JSON
-            return response_text[:200] + "..." if len(response_text) > 200 else response_text
+            return {
+                "summary": response_text[:200] + "..." if len(response_text) > 200 else response_text,
+                "sentiment": "neutral"
+            }
             
     except Exception as e:
         print(f"DEBUG: OpenAI State Update Error: {e}")
-        return old_summary
+        return {
+            "summary": old_summary,
+            "sentiment": "neutral"
+        }
 
 @app.route('/sms/inbound', methods=['POST'])
 def handle_incoming_sms():
@@ -255,11 +256,20 @@ def handle_incoming_sms():
     try:
         history = context_data.get('history', [])
         current_summary = context_data.get('summary', '')
-        new_summary = update_conversation_state(current_summary, history, body, reply_text)
+        
+        # Get AI analysis (dictionary)
+        state_updates = update_conversation_state(current_summary, history, body, reply_text)
 
+        # Update DB:
+        # 1. Provide the new text summary
+        # 2. Extract the sentiment to its dedicated column
+        # 3. CRITICAL: Force `intent` = 'WAITING_FOR_ANSWER' so the cron worker will 
+        #    trigger Follow-up #1 if user doesn't reply in 30 mins!
         db_client.update_conversation(
             customer_id=customer_id,
-            summary=new_summary,
+            summary=state_updates.get("summary", current_summary),
+            sentiment=state_updates.get("sentiment", "neutral"),
+            intent="WAITING_FOR_ANSWER", 
             last_agent_action="AI Replied via SMS"
         )
     except Exception as e:
