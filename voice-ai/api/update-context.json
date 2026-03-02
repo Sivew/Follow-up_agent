@@ -2,7 +2,7 @@
   "name": "Sarah DB - Update Conversation Context",
   "description": "Update conversation summary and intent after a voice call",
   "method": "POST",
-  "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{customer_id}}/update",
+  "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/conversation/{{context_id}}/update",
   "headers": {
     "x-api-key": "{{api_key}}",
     "Content-Type": "application/json"
@@ -16,7 +16,7 @@
   "example": {
     "description": "Example: Update context after voice call",
     "input": {
-      "customer_id": 123,
+      "context_id": "550e8400-e29b-41d4-a716-446655440000",
       "conversation_summary": "Customer interested in enterprise pricing. Discussed team size requirements. Scheduled follow-up call for next Tuesday.",
       "intent": "followup_scheduled",
       "last_agent_action": "Voice call completed",
@@ -37,7 +37,7 @@
   "make_com_config": {
     "module_type": "HTTP",
     "method": "POST",
-    "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{customer_id}}/update",
+    "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/conversation/{{context_id}}/update",
     "headers": {
       "x-api-key": "{{connection.api_key}}",
       "Content-Type": "application/json"
@@ -51,7 +51,7 @@
     }
   },
   "field_descriptions": {
-    "customer_id": "Numeric customer ID from customer lookup",
+    "context_id": "UUID context ID from customer lookup response",
     "conversation_summary": "Updated summary of the conversation (can include voice call info)",
     "intent": "New intent based on call outcome",
     "last_agent_action": "Description of what action was taken (e.g., 'Voice call completed')"
@@ -65,7 +65,8 @@
     "not_interested": "not_interested"
   },
   "notes": [
-    "Use customer_id in the URL path (not context_id)",
+    "IMPORTANT: Use /conversation/{context_id}/update (not /context/{customer_id}/update)",
+    "Use context_id (UUID) in the URL path, not customer_id",
     "All fields are optional - only include what you want to update",
     "summary field gets overwritten, so include previous context if needed",
     "intent helps track automation state for follow-ups"

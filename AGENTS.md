@@ -129,6 +129,10 @@ REDIS_URL=redis://localhost:6379/0
 
 2. **Dependencies**: Ensure `twilio`, `requests`, and `python-dotenv` are installed alongside requirements.txt packages.
 
+3. **Endpoint Clarity**: Note the difference between endpoints:
+   - `GET /context/{identifier}` - Get customer context (uses customer_id or phone)
+   - `POST /conversation/{context_id}/update` - Update conversation state (uses context_id UUID)
+
 ## API Documentation
 
 See `API_REFERENCE.md` for quick reference to Core API endpoints.

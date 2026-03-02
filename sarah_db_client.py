@@ -127,6 +127,7 @@ class SarahDBClient:
                             open_questions: Optional[str] = None) -> Dict[str, Any]:
         """
         Update conversation state after AI processing.
+        Uses context_id (not customer_id) as per API spec.
         Only provide fields you want to update.
         """
         if not context_id:
@@ -142,11 +143,12 @@ class SarahDBClient:
         if not payload:
             return {"status": "no_changes"}
 
-        url = f"{self.BASE_URL}/context/{context_id}/update"
+        # CORRECT endpoint: /conversation/{context_id}/update (not /context/)
+        url = f"{self.BASE_URL}/conversation/{context_id}/update"
         
         try:
             resp = requests.post(url, json=payload, headers=self.headers, timeout=10)
             resp.raise_for_status()
             return resp.json()
         except requests.exceptions.RequestException as e:
-            raise Exception(f"Failed to update conversation for customer {customer_id}: {str(e)}")
+            raise Exception(f"Failed to update conversation {context_id}: {str(e)}")
