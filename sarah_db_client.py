@@ -119,7 +119,7 @@ class SarahDBClient:
             raise Exception(f"Failed to log message: {str(e)}")
 
     def update_conversation(self, 
-                            customer_id: int, 
+                            context_id: str, 
                             summary: Optional[str] = None,
                             intent: Optional[str] = None, 
                             sentiment: Optional[str] = None,
@@ -129,8 +129,8 @@ class SarahDBClient:
         Update conversation state after AI processing.
         Only provide fields you want to update.
         """
-        if not customer_id:
-             raise ValueError("Customer ID is required for update")
+        if not context_id:
+             raise ValueError("Context ID is required for update")
 
         payload = {}
         if summary: payload["summary"] = summary
@@ -142,7 +142,7 @@ class SarahDBClient:
         if not payload:
             return {"status": "no_changes"}
 
-        url = f"{self.BASE_URL}/context/{customer_id}/update"
+        url = f"{self.BASE_URL}/context/{context_id}/update"
         
         try:
             resp = requests.post(url, json=payload, headers=self.headers, timeout=10)

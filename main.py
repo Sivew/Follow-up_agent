@@ -64,7 +64,7 @@ def handle_incoming_sms():
         # This stops the cron worker from sending follow-ups
         if context_id:
             db_client.update_conversation(
-                customer_id=customer_id,
+                context_id=context_id,
                 intent="ENGAGED",
                 summary=f"User replied: {body[:50]}..."
             )

@@ -232,7 +232,7 @@ def handle_incoming_sms():
         resp.message(reply_text)
         try:
             db_client.log_message(customer_id, "sms", sender, "outbound", reply_text, context_id)
-            db_client.update_conversation(customer_id, last_agent_action="Handoff Requested")
+            db_client.update_conversation(context_id, last_agent_action="Handoff Requested")
         except: pass
         return str(resp)
 
@@ -266,7 +266,7 @@ def handle_incoming_sms():
         # 3. CRITICAL: Force `intent` = 'WAITING_FOR_ANSWER' so the cron worker will 
         #    trigger Follow-up #1 if user doesn't reply in 30 mins!
         db_client.update_conversation(
-            customer_id=customer_id,
+            context_id=context_id,
             summary=state_updates.get("summary", current_summary),
             sentiment=state_updates.get("sentiment", "neutral"),
             intent="WAITING_FOR_ANSWER", 
