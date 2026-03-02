@@ -12,6 +12,7 @@ SMS automation bot for real estate lead follow-up. Built with Python (Flask), Tw
 - `tasks.py` - RQ worker for scheduled follow-ups
 - `sarah_db_client.py` - API client for Lead Conversation Management System
 - `utils.py` - Helper functions (logging, human handoff detection)
+- `voice-ai/` - Voice AI integration (Vapi + Make.com)
 
 ## State Machine (via `intent` Field)
 

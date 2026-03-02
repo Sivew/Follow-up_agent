@@ -1,26 +1,27 @@
 {
   "name": "Voice AI - Incoming Call Handler",
-  "description": "Handles incoming voice calls from Vapi, fetches customer data from Sarah DB",
+  "description": "Handles incoming voice calls from Vapi as a Tool Call, fetches customer data from Sarah DB",
   "scenario_type": "webhook_based",
   "trigger": {
     "type": "webhook",
-    "webhook_name": "vapi-incoming-call"
+    "webhook_name": "vapi-incoming-call-tool"
   },
   "flow": [
     {
       "step": 1,
       "name": "Receive Webhook from Vapi",
       "module": "Webhook",
-      "description": "Receives incoming call event from Vapi"
+      "description": "Receives tool call request from Vapi"
     },
     {
       "step": 2,
-      "name": "Extract Phone Number",
+      "name": "Extract Phone Number and Tool Call ID",
       "module": "Parse JSON",
-      "description": "Extract phone_number from webhook payload",
+      "description": "Extract phone_number and toolCallId from webhook payload",
       "mapping": {
         "phone_number": "{{1.message.message.call.phone_number}}",
-        "call_id": "{{1.message.message.call.id}}"
+        "call_id": "{{1.message.message.call.id}}",
+        "toolCallId": "{{1.message.toolCalls[0].id}}"
       }
     },
     {
@@ -32,25 +33,34 @@
         "method": "GET",
         "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{phone_number}}?by=phone_normalized",
         "headers": {
-          "x-api-key": "{{connection.CORE_API_KEY}}",
+          "X-Api-Key": "{{connection.CORE_API_KEY}}",
           "Content-Type": "application/json"
         }
       }
     },
     {
       "step": 4,
+      "name": "Format Customer Data for Vapi",
+      "module": "Set Variable",
+      "description": "Combine name and summary into a single-line string for Vapi",
+      "variables": {
+        "result_string": "Customer Name: {{3.customer.name}}, Summary: {{3.summary}}"
+      }
+    },
+    {
+      "step": 5,
       "name": "Return Customer Data to Vapi",
       "module": "Response",
-      "description": "Send customer data back to Vapi for conversation context",
+      "description": "Send customer data back to Vapi in required format",
       "config": {
         "status": 200,
         "body": {
-          "customer_id": "{{3.customer_id}}",
-          "name": "{{3.customer.name}}",
-          "email": "{{3.customer.email}}",
-          "summary": "{{3.summary}}",
-          "intent": "{{3.intent}}",
-          "history": "{{3.history}}"
+          "results": [
+            {
+              "toolCallId": "{{toolCallId}}",
+              "result": "{{result_string}}"
+            }
+          ]
         }
       }
     }
@@ -58,19 +68,20 @@
   "error_handling": {
     "customer_not_found": {
       "description": "Handle case where customer doesn't exist",
-      "action": "Return default/nil customer data to Vapi"
+      "action": "Return result with 'New Customer - no history' so call can proceed"
     },
     "api_error": {
       "description": "Handle API errors gracefully",
-      "action": "Return 200 with empty customer data to allow call to proceed"
+      "action": "Return 200 with empty result to allow call to proceed"
     }
   },
   "make_com_import_instructions": [
     "1. Create new scenario in Make.com",
-    "2. Add Webhook module - copy URL to Vapi dashboard",
-    "3. Add Parse JSON module to extract phone_number",
+    "2. Add Webhook module - copy URL to Vapi dashboard as a Tool",
+    "3. Add Parse JSON module to extract phone_number and toolCallId",
     "4. Add HTTP module for GET /context endpoint",
-    "5. Add Response module to return data to Vapi",
-    "6. Activate scenario"
+    "5. Add Set Variable module to format result string",
+    "6. Add Response module with exact JSON structure above",
+    "7. Activate scenario"
   ]
 }

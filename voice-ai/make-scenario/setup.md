@@ -38,7 +38,7 @@ HTTP Module Configuration:
 ├── URL: https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{phone_number}}?by=phone_normalized
 ├──
 ├── Headers (click "Show advanced settings" if needed):
-│   ├── x-api-key: your_actual_api_key_here
+│   ├── X-Api-Key: your_actual_api_key_here
 │   └── Content-Type: application/json
 │
 └── Body type: (for POST only)
@@ -50,13 +50,14 @@ HTTP Module Configuration:
 - ❌ Don't select "AWS Signature" - that's for AWS services
 - ✅ Set Authentication to **"None"**
 - ✅ Add headers manually in the Headers section
+- ✅ Use **X-Api-Key** (camelCase) - Make.com auto-capitalizes headers
 
 ### Step 2: Set Up Webhooks
 
-#### Incoming Call Webhook
+#### Incoming Call Webhook (as Tool Call)
 1. Add "Webhook" module as trigger
 2. Copy the webhook URL
-3. Paste this URL in Vapi dashboard (see `../vapi-setup/configuration.md`)
+3. In Vapi dashboard, configure this as a **Tool** (not just a Server Message)
 4. Test the webhook to ensure it's receiving data
 
 #### Call Ended Webhook
@@ -74,6 +75,40 @@ For incoming call scenario:
    - Method: GET
    - URL: `{{CORE_API_URL}}/context/{{phone_number}}?by=phone_normalized`
    - Headers: Already configured in connection
+
+### Step 3.5: Configure Vapi Response Format (CRITICAL)
+
+This is the most important step! Vapi expects a specific response format for Tool Calls.
+
+1. Add **"Response"** module (not HTTP)
+2. Configure it with:
+
+```
+Response Module:
+├── Status: 200
+└── Body (raw JSON):
+```
+
+**Body (copy exactly):**
+```json
+{
+  "results": [
+    {
+      "toolCallId": "{{toolCallId}}",
+      "result": "Customer Name: {{customer_name}}, Summary: {{summary}}"
+    }
+  ]
+}
+```
+
+**Where to get the values:**
+- `toolCallId`: Extract from webhook: `{{1.message.toolCalls[0].id}}`
+- `customer_name`: From API response: `{{3.customer.name}}`
+- `summary`: From API response: `{{3.summary}}`
+
+**Important:** 
+- Use a "Set Variable" or "Text Aggregator" module to combine the values into one string
+- The `result` field must be a **single-line string**, not JSON
 
 ### Step 4: Configure Call Logging
 
@@ -169,8 +204,27 @@ Vapi Webhook → Parse JSON → HTTP POST /log → HTTP POST /context/update →
 **Cause:** API key not being passed correctly
 **Fix:**
 - Verify Authentication is set to **"None"**
-- Check header name is exactly `x-api-key` (lowercase, with hyphen)
+- Check header name is exactly `X-Api-Key` (Make.com capitalizes to camelCase)
 - Make sure header value is your actual API key (not empty, not wrapped in {{}})
+
+### Vapi Not Receiving Data
+**Error:** Vapi says no data received or wrong format
+**Cause:** Response module not configured correctly
+**Fix:**
+- Ensure Response module has Status 200
+- Body must be valid JSON with the exact structure:
+  ```json
+  {
+    "results": [
+      {
+        "toolCallId": "{{toolCallId}}",
+        "result": "Customer Name: John, Summary: Interested in pricing"
+      }
+    ]
+  }
+  ```
+- The `result` field must be a **single-line string**, not JSON object
+- Extract toolCallId from: `{{1.message.toolCalls[0].id}}`
 
 ### Customer Not Found
 - Ensure phone number format matches (use normalized)
