@@ -1,0 +1,133 @@
+{
+  "name": "Voice AI - Call Ended Handler",
+  "description": "Handles call ended events from Vapi, logs call and updates conversation in Sarah DB",
+  "scenario_type": "webhook_based",
+  "trigger": {
+    "type": "webhook",
+    "webhook_name": "vapi-call-ended"
+  },
+  "flow": [
+    {
+      "step": 1,
+      "name": "Receive Webhook from Vapi",
+      "module": "Webhook",
+      "description": "Receives call ended event from Vapi"
+    },
+    {
+      "step": 2,
+      "name": "Extract Call Metadata",
+      "module": "Parse JSON",
+      "description": "Extract call details from webhook payload",
+      "mapping": {
+        "phone_number": "{{1.message.message.call.phone_number}}",
+        "call_id": "{{1.message.message.call.id}}",
+        "duration": "{{1.message.message.call.duration}}",
+        "status": "{{1.message.message.call.status}}",
+        "timestamp": "{{1.timestamp}}"
+      }
+    },
+    {
+      "step": 3,
+      "name": "Lookup Customer",
+      "module": "HTTP",
+      "description": "Get customer_id from phone number",
+      "config": {
+        "method": "GET",
+        "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{phone_number}}?by=phone_normalized",
+        "headers": {
+          "x-api-key": "{{connection.CORE_API_KEY}}",
+          "Content-Type": "application/json"
+        }
+      }
+    },
+    {
+      "step": 4,
+      "name": "Generate Call Summary",
+      "module": "Set Variable",
+      "description": "Create brief summary based on call outcome",
+      "logic": {
+        "completed": "Voice call completed. Customer interested in services discussed.",
+        "voicemail": "Left voicemail message for customer.",
+        "no_answer": "Call was not answered. Customer unavailable.",
+        "failed": "Call failed to connect."
+      }
+    },
+    {
+      "step": 5,
+      "name": "Log Call to Sarah DB",
+      "module": "HTTP",
+      "description": "Log the voice call using /log endpoint",
+      "config": {
+        "method": "POST",
+        "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/log",
+        "headers": {
+          "x-api-key": "{{connection.CORE_API_KEY}}",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "customer_id": "{{3.customer_id}}",
+          "channel": "voice",
+          "channel_identifier": "{{phone_number}}",
+          "direction": "outbound",
+          "message_body": "{{summary}}",
+          "metadata": {
+            "duration": "{{duration}}",
+            "outcome": "{{status}}",
+            "phone": "{{phone_number}}",
+            "timestamp": "{{timestamp}}",
+            "call_id": "{{call_id}}"
+          }
+        }
+      }
+    },
+    {
+      "step": 6,
+      "name": "Update Conversation Context",
+      "module": "HTTP",
+      "description": "Update conversation with call summary and intent",
+      "config": {
+        "method": "POST",
+        "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{3.customer_id}}/update",
+        "headers": {
+          "x-api-key": "{{connection.CORE_API_KEY}}",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "summary": "{{summary}}",
+          "intent": "{{intent_from_status}}",
+          "last_agent_action": "Voice call completed via Vapi"
+        }
+      }
+    }
+  ],
+  "error_handling": {
+    "customer_not_found": {
+      "description": "Handle case where customer doesn't exist in DB",
+      "action": "Skip logging, return success"
+    },
+    "log_failed": {
+      "description": "Handle logging failure",
+      "action": "Continue to update context, log error for review"
+    },
+    "update_failed": {
+      "description": "Handle context update failure",
+      "action": "Call is already logged, return success"
+    }
+  },
+  "intent_mapping": {
+    "completed": "call_completed",
+    "voicemail": "voicemail_left",
+    "no_answer": "no_answer",
+    "failed": "call_failed"
+  },
+  "make_com_import_instructions": [
+    "1. Create new scenario in Make.com",
+    "2. Add Webhook module - copy URL to Vapi dashboard",
+    "3. Add Parse JSON module to extract call metadata",
+    "4. Add HTTP module for GET /context endpoint",
+    "5. Add Set Variable module for summary generation",
+    "6. Add HTTP module for POST /log endpoint",
+    "7. Add HTTP module for POST /context/{customer_id}/update",
+    "8. Activate scenario"
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "name": "Voice AI - Incoming Call Handler",
+  "description": "Handles incoming voice calls from Vapi, fetches customer data from Sarah DB",
+  "scenario_type": "webhook_based",
+  "trigger": {
+    "type": "webhook",
+    "webhook_name": "vapi-incoming-call"
+  },
+  "flow": [
+    {
+      "step": 1,
+      "name": "Receive Webhook from Vapi",
+      "module": "Webhook",
+      "description": "Receives incoming call event from Vapi"
+    },
+    {
+      "step": 2,
+      "name": "Extract Phone Number",
+      "module": "Parse JSON",
+      "description": "Extract phone_number from webhook payload",
+      "mapping": {
+        "phone_number": "{{1.message.message.call.phone_number}}",
+        "call_id": "{{1.message.message.call.id}}"
+      }
+    },
+    {
+      "step": 3,
+      "name": "Lookup Customer in Sarah DB",
+      "module": "HTTP",
+      "description": "Get customer context by phone number",
+      "config": {
+        "method": "GET",
+        "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{phone_number}}?by=phone_normalized",
+        "headers": {
+          "x-api-key": "{{connection.CORE_API_KEY}}",
+          "Content-Type": "application/json"
+        }
+      }
+    },
+    {
+      "step": 4,
+      "name": "Return Customer Data to Vapi",
+      "module": "Response",
+      "description": "Send customer data back to Vapi for conversation context",
+      "config": {
+        "status": 200,
+        "body": {
+          "customer_id": "{{3.customer_id}}",
+          "name": "{{3.customer.name}}",
+          "email": "{{3.customer.email}}",
+          "summary": "{{3.summary}}",
+          "intent": "{{3.intent}}",
+          "history": "{{3.history}}"
+        }
+      }
+    }
+  ],
+  "error_handling": {
+    "customer_not_found": {
+      "description": "Handle case where customer doesn't exist",
+      "action": "Return default/nil customer data to Vapi"
+    },
+    "api_error": {
+      "description": "Handle API errors gracefully",
+      "action": "Return 200 with empty customer data to allow call to proceed"
+    }
+  },
+  "make_com_import_instructions": [
+    "1. Create new scenario in Make.com",
+    "2. Add Webhook module - copy URL to Vapi dashboard",
+    "3. Add Parse JSON module to extract phone_number",
+    "4. Add HTTP module for GET /context endpoint",
+    "5. Add Response module to return data to Vapi",
+    "6. Activate scenario"
+  ]
+}

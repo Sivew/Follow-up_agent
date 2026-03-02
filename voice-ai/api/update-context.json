@@ -1,0 +1,73 @@
+{
+  "name": "Sarah DB - Update Conversation Context",
+  "description": "Update conversation summary and intent after a voice call",
+  "method": "POST",
+  "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{customer_id}}/update",
+  "headers": {
+    "x-api-key": "{{api_key}}",
+    "Content-Type": "application/json"
+  },
+  "timeout": 10,
+  "request_body": {
+    "summary": "{{conversation_summary}}",
+    "intent": "{{intent}}",
+    "last_agent_action": "{{last_agent_action}}"
+  },
+  "example": {
+    "description": "Example: Update context after voice call",
+    "input": {
+      "customer_id": 123,
+      "conversation_summary": "Customer interested in enterprise pricing. Discussed team size requirements. Scheduled follow-up call for next Tuesday.",
+      "intent": "followup_scheduled",
+      "last_agent_action": "Voice call completed",
+      "api_key": "your_api_key_here"
+    },
+    "request": {
+      "summary": "Customer interested in enterprise pricing. Discussed team size requirements. Scheduled follow-up call for next Tuesday.",
+      "intent": "followup_scheduled",
+      "last_agent_action": "Voice call completed"
+    },
+    "expected_response": {
+      "success": true,
+      "context_id": "550e8400-e29b-41d4-a716-446655440000",
+      "customer_id": 123,
+      "message_count": 6
+    }
+  },
+  "make_com_config": {
+    "module_type": "HTTP",
+    "method": "POST",
+    "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{customer_id}}/update",
+    "headers": {
+      "x-api-key": "{{connection.api_key}}",
+      "Content-Type": "application/json"
+    },
+    "body_type": "raw",
+    "content_type": "application/json",
+    "body": {
+      "summary": "{{conversation_summary}}",
+      "intent": "{{intent}}",
+      "last_agent_action": "{{last_agent_action}}"
+    }
+  },
+  "field_descriptions": {
+    "customer_id": "Numeric customer ID from customer lookup",
+    "conversation_summary": "Updated summary of the conversation (can include voice call info)",
+    "intent": "New intent based on call outcome",
+    "last_agent_action": "Description of what action was taken (e.g., 'Voice call completed')"
+  },
+  "suggested_intents": {
+    "completed": "call_completed",
+    "voicemail": "voicemail_left",
+    "no_answer": "no_answer",
+    "failed": "call_failed",
+    "interested_followup": "followup_scheduled",
+    "not_interested": "not_interested"
+  },
+  "notes": [
+    "Use customer_id in the URL path (not context_id)",
+    "All fields are optional - only include what you want to update",
+    "summary field gets overwritten, so include previous context if needed",
+    "intent helps track automation state for follow-ups"
+  ]
+}

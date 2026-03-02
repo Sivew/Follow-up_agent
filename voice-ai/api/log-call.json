@@ -1,0 +1,103 @@
+{
+  "name": "Sarah DB - Log Voice Call",
+  "description": "Log a voice call with metadata (duration, outcome, timestamp)",
+  "method": "POST",
+  "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/log",
+  "headers": {
+    "x-api-key": "{{api_key}}",
+    "Content-Type": "application/json"
+  },
+  "timeout": 10,
+  "request_body": {
+    "customer_id": "{{customer_id}}",
+    "channel": "voice",
+    "channel_identifier": "{{phone_number}}",
+    "direction": "outbound",
+    "message_body": "{{call_summary}}",
+    "metadata": {
+      "duration": "{{duration}}",
+      "outcome": "{{outcome}}",
+      "phone": "{{phone_number}}",
+      "timestamp": "{{timestamp}}",
+      "call_id": "{{call_id}}"
+    }
+  },
+  "example": {
+    "description": "Example: Log a voice call",
+    "input": {
+      "customer_id": 123,
+      "phone_number": "+14165551234",
+      "call_summary": "Customer interested in enterprise pricing. Scheduled follow-up call for next week.",
+      "duration": 180,
+      "outcome": "completed",
+      "timestamp": "2026-02-20T15:30:00Z",
+      "call_id": "call_abc123",
+      "api_key": "your_api_key_here"
+    },
+    "request": {
+      "customer_id": 123,
+      "channel": "voice",
+      "channel_identifier": "+14165551234",
+      "direction": "outbound",
+      "message_body": "Customer interested in enterprise pricing. Scheduled follow-up call for next week.",
+      "metadata": {
+        "duration": 180,
+        "outcome": "completed",
+        "phone": "+14165551234",
+        "timestamp": "2026-02-20T15:30:00Z",
+        "call_id": "call_abc123"
+      }
+    },
+    "expected_response": {
+      "success": true,
+      "log_id": 789,
+      "context_id": "550e8400-e29b-41d4-a716-446655440000"
+    }
+  },
+  "make_com_config": {
+    "module_type": "HTTP",
+    "method": "POST",
+    "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/log",
+    "headers": {
+      "x-api-key": "{{connection.api_key}}",
+      "Content-Type": "application/json"
+    },
+    "body_type": "raw",
+    "content_type": "application/json",
+    "body": {
+      "customer_id": "{{customer_id}}",
+      "channel": "voice",
+      "channel_identifier": "{{phone_number}}",
+      "direction": "outbound",
+      "message_body": "{{call_summary}}",
+      "metadata": {
+        "duration": "{{duration}}",
+        "outcome": "{{outcome}}",
+        "phone": "{{phone_number}}",
+        "timestamp": "{{timestamp}}",
+        "call_id": "{{call_id}}"
+      }
+    }
+  },
+  "field_descriptions": {
+    "customer_id": "Numeric customer ID from customer lookup",
+    "phone_number": "Customer phone number (E.164 format)",
+    "call_summary": "Brief 1-2 sentence summary of the call",
+    "duration": "Call duration in seconds (integer)",
+    "outcome": "completed, voicemail, no_answer, or failed",
+    "timestamp": "ISO 8601 timestamp of call end",
+    "call_id": "Optional Vapi call identifier"
+  },
+  "valid_outcomes": [
+    "completed",
+    "voicemail",
+    "no_answer",
+    "failed"
+  ],
+  "notes": [
+    "Use channel='voice' to distinguish from SMS/chat",
+    "message_body should be a brief summary, not full transcript",
+    "All metadata fields are stored in the metadata JSON object",
+    "Response includes log_id and context_id"
+  ]
+}

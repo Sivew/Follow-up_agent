@@ -1,0 +1,63 @@
+{
+  "name": "Sarah DB - Customer Lookup",
+  "description": "Look up customer by phone number using phone_normalized",
+  "method": "GET",
+  "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{phone_number}}?by=phone_normalized",
+  "headers": {
+    "x-api-key": "{{api_key}}",
+    "Content-Type": "application/json"
+  },
+  "timeout": 10,
+  "example": {
+    "description": "Example: Lookup customer by phone number",
+    "input": {
+      "phone_number": "+14165551234",
+      "api_key": "your_api_key_here"
+    },
+    "expected_response": {
+      "context_id": "550e8400-e29b-41d4-a716-446655440000",
+      "customer_id": 123,
+      "customer": {
+        "customer_id": 123,
+        "name": "John Doe",
+        "email": "john@example.com",
+        "phone": "+1 416 555 1234",
+        "phone_normalized": "+14165551234"
+      },
+      "status": "active",
+      "summary": "Customer interested in enterprise pricing",
+      "intent": "pricing_inquiry",
+      "sentiment": "positive",
+      "last_channel": "sms",
+      "last_interaction_at": "2026-02-17T14:30:00",
+      "message_count": 5,
+      "history": [
+        {
+          "direction": "inbound",
+          "message_body": "I want enterprise pricing",
+          "channel": "sms",
+          "created_at": "2026-02-17T14:30:00"
+        }
+      ],
+      "is_new": false
+    }
+  },
+  "make_com_config": {
+    "module_type": "HTTP",
+    "method": "GET",
+    "url": "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod/context/{{phone_number}}?by=phone_normalized",
+    "headers": {
+      "x-api-key": "{{connection.api_key}}",
+      "Content-Type": "application/json"
+    },
+    "query_parameters": {},
+    "body_type": "raw",
+    "content_type": "application/json"
+  },
+  "notes": [
+    "Use phone_normalized (E.164 format) for lookup",
+    "Returns customer data including conversation history",
+    "If customer not found, returns 404",
+    "Response includes customer_id needed for other API calls"
+  ]
+}
