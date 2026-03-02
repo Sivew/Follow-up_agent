@@ -147,27 +147,30 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
                 response_text = response_text[3:-3].strip()
                 
             parsed_data = json.loads(response_text)
-            return {
-                "summary": parsed_data.get("summary", old_summary),
-                "intent": parsed_data.get("intent"),
-                "sentiment": parsed_data.get("sentiment")
-            }
+            
+            # Extract fields
+            summary_text = parsed_data.get("summary", old_summary)
+            intent_val = parsed_data.get("intent")
+            sentiment_val = parsed_data.get("sentiment")
+            
+            # Combine into a single text string for the summary field
+            combined_summary = summary_text
+            if intent_val and sentiment_val:
+                combined_summary += f" [Intent: {intent_val} | Sentiment: {sentiment_val}]"
+            elif intent_val:
+                combined_summary += f" [Intent: {intent_val}]"
+            elif sentiment_val:
+                combined_summary += f" [Sentiment: {sentiment_val}]"
+
+            return combined_summary
         except json.JSONDecodeError:
             print(f"DEBUG: Failed to parse JSON from AI: {response_text}")
             # Fallback: Just return the raw text as summary if it wasn't valid JSON
-            return {
-                "summary": response_text[:200] + "..." if len(response_text) > 200 else response_text,
-                "intent": None,
-                "sentiment": None
-            }
+            return response_text[:200] + "..." if len(response_text) > 200 else response_text
             
     except Exception as e:
         print(f"DEBUG: OpenAI State Update Error: {e}")
-        return {
-            "summary": old_summary,
-            "intent": None,
-            "sentiment": None
-        }
+        return old_summary
 
 @app.route('/sms/inbound', methods=['POST'])
 def handle_incoming_sms():
@@ -252,13 +255,11 @@ def handle_incoming_sms():
     try:
         history = context_data.get('history', [])
         current_summary = context_data.get('summary', '')
-        state_updates = update_conversation_state(current_summary, history, body, reply_text)
+        new_summary = update_conversation_state(current_summary, history, body, reply_text)
 
         db_client.update_conversation(
             customer_id=customer_id,
-            summary=state_updates.get("summary", current_summary),
-            intent=state_updates.get("intent"),
-            sentiment=state_updates.get("sentiment"),
+            summary=new_summary,
             last_agent_action="AI Replied via SMS"
         )
     except Exception as e:
