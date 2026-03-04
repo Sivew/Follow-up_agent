@@ -87,6 +87,7 @@ def generate_smart_reply(context_data, user_input):
       4. If the slot is open, ask for their email address (you already have their phone).
       5. Once they provide their email, YOU MUST call `book_appointment` to finalize it!
       6. DO NOT say "I've noted your appointment" or "I've booked it" UNLESS you actually called `book_appointment` and it succeeded.
+      7. **If the user asks for a booking or it is confirmed, STOP ASKING QUESTIONS. Do NOT ask what they want to discuss. Just confirm the time, thank them, and be extremely brief.**
     - **Language:** English or Quebec French (match user).
     """
 
@@ -374,17 +375,18 @@ def handle_incoming_sms():
         
         # Get AI analysis (dictionary)
         state_updates = update_conversation_state(current_summary, history, body, reply_text)
+        
+        # Decide the new intent based on booking request
+        # If booking is requested, flag as HOT_LEAD to stop follow-up cron loops!
+        is_booking_req = state_updates.get("booking_requested", False)
+        new_intent = "HOT_LEAD" if is_booking_req else "WAITING_FOR_ANSWER"
 
         # Update DB:
-        # 1. Provide the new text summary
-        # 2. Extract the sentiment to its dedicated column
-        # 3. CRITICAL: Force `intent` = 'WAITING_FOR_ANSWER' so the cron worker will 
-        #    trigger Follow-up #1 if user doesn't reply in 30 mins!
         db_client.update_conversation(
             context_id=context_id,
             summary=state_updates.get("summary", current_summary),
             sentiment=state_updates.get("sentiment", "neutral"),
-            intent="WAITING_FOR_ANSWER", 
+            intent=new_intent, 
             last_agent_action="AI Replied via SMS"
         )
         
