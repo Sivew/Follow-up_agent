@@ -91,10 +91,16 @@ def generate_smart_reply(context_data, user_input):
     - **Language:** English or Quebec French (match user).
     """
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_input}
-    ]
+    messages = [{"role": "system", "content": system_prompt}]
+    
+    # 2.5 Inject true message history so OpenAI natively understands its function call role
+    if history:
+        for msg in reversed(history[:8]):
+            role = "user" if msg['direction'] == 'inbound' else "assistant"
+            content = msg.get('message_body', '')
+            messages.append({"role": role, "content": content})
+            
+    messages.append({"role": "user", "content": user_input})
 
     functions = [
         {
