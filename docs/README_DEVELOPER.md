@@ -3,6 +3,10 @@
 ## 📝 VERSION HISTORY & AI DEV LOGS
 *This section acts as the communication channel between the AI (Wonderbot/Sarah) and the Human Dev Team. Every change to the project will be logged here with the "What" and the "Why".*
 
+### [V2.1] - 2026-03-04 - API Endpoint Correction & Vapi Integration Documentation
+*   **What:** Fixed API endpoint in `sarah_db_client.py` from `/context/{customer_id}/update` to `/conversation/{context_id}/update`. Updated all callers (`app.py`, `main.py`, `cron_worker.py`) to pass `context_id` (UUID) instead of `customer_id` (integer). Created comprehensive Vapi troubleshooting docs (`voice-ai/VAPI_NO_RESULT_FIX.md`, `voice-ai/MAKE_COM_FLOW_FIX.md`) and updated `voice-ai/make-scenario/setup.md` with correct response format for Make.com webhooks.
+*   **Why:** Senior dev confirmed the correct endpoint is `/conversation/` not `/context/` - using wrong endpoint was causing conversation updates to fail. Vapi "No result returned" error was caused by Make.com wrapping responses in HTTP envelope instead of returning clean JSON with `{"results": [...]}` structure.
+
 ### [V2.0] - 2026-03-04 - Dynamic LLM Follow-ups & CRM Extraction
 *   **What:** Replaced hardcoded follow-up strings in `cron_worker.py` with LLM-generated texts via `generate_smart_followup()`. Created `followup_strategy.json` to control timing and AI instructions. Added name/email extraction to `app.py`'s AI prompt, which now pushes data to `PUT /customers/{id}` via `sarah_db_client.py`. Cleaned up repo by moving all `.md` docs to `docs/`.
 *   **Why:** To make follow-ups context-aware (V2 Architecture) rather than generic, and to automatically enrich the CRM database as the AI learns user details during natural conversation. Moving docs to `docs/` improves repo maintainability.
