@@ -1,0 +1,17 @@
+{
+  "WAITING_FOR_ANSWER": {
+    "next_intent": "FOLLOWUP_1",
+    "wait_minutes": 30,
+    "template": "Hi {name}, just bumping this up! Did you have any thoughts on my last message? - {agent_name}"
+  },
+  "FOLLOWUP_1": {
+    "next_intent": "FOLLOWUP_2",
+    "wait_minutes": 1440,
+    "template": "Hey again! Are you still interested? If not, reply 'stop'. Thanks! - {agent_name}"
+  },
+  "FOLLOWUP_2": {
+    "next_intent": "NURTURE",
+    "wait_minutes": 1440,
+    "template": null
+  }
+}

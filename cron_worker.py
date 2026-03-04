@@ -1,5 +1,6 @@
 import os
 import time
+import json
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from sarah_db_client import SarahDBClient
@@ -20,9 +21,10 @@ AGENT_NAME = os.getenv("AGENT_NAME", "Wonderbot")
 db_client = SarahDBClient(api_key=API_KEY)
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# Thresholds
-THRESHOLD_FOLLOWUP_1_MINS = 30
-THRESHOLD_FOLLOWUP_2_HOURS = 24
+# Load Strategy
+STRATEGY_FILE = os.path.join(os.path.dirname(__file__), "followup_strategy.json")
+with open(STRATEGY_FILE, "r") as f:
+    STRATEGY = json.load(f)
 
 def send_sms(to_number, body):
     """Sends SMS via Twilio and logs it to the DB."""
@@ -74,6 +76,9 @@ def process_conversations():
         last_interaction_str = context.get("last_interaction_at")
         context_id = context.get("context_id")
         
+        if not intent or intent not in STRATEGY:
+            continue
+
         if not last_interaction_str:
             continue
 
@@ -88,52 +93,42 @@ def process_conversations():
         now = datetime.now(timezone.utc)
         time_diff = now - last_interaction
         mins_since_last = time_diff.total_seconds() / 60
-        hours_since_last = time_diff.total_seconds() / 3600
 
-        # Get phone number (prefer normalized)
-        customer_data = context.get("customer", {})
-        phone = customer_data.get("phone_normalized") or customer_data.get("phone")
-        
-        # Logic: WAITING_FOR_ANSWER -> FOLLOWUP_1
-        if intent == "WAITING_FOR_ANSWER" and mins_since_last >= THRESHOLD_FOLLOWUP_1_MINS:
-            print(f"⚡ Triggering Follow-up #1 for {context_id}")
-            msg_body = f"Hi {customer_data.get('name', 'there')}, just bumping this up! Did you have any thoughts on my last message? - {AGENT_NAME}"
+        # Get Strategy Rules
+        rule = STRATEGY[intent]
+        wait_minutes = rule.get("wait_minutes", 0)
+        next_intent = rule.get("next_intent")
+        template = rule.get("template")
+
+        if mins_since_last >= wait_minutes:
+            print(f"⚡ Triggering rule {intent} -> {next_intent} for {context_id}")
             
-            sid = send_sms(phone, msg_body)
-            if sid:
-                db_client.log_message(
-                    customer_id=customer_id,
-                    channel="sms",
-                    identifier=phone,
-                    direction="outbound",
-                    body=msg_body,
-                    context_id=context_id,
-                    metadata={"twilio_sid": sid, "type": "auto_followup_1"}
-                )
-                db_client.update_conversation(context_id=context_id, intent="FOLLOWUP_1", summary=f"Auto-sent Follow-up #1")
+            if template:
+                # Personalize Template
+                customer_data = context.get("customer", {})
+                phone = customer_data.get("phone_normalized") or customer_data.get("phone")
+                name = customer_data.get("name")
+                if not name or name.lower() == "test user" or "unknown" in name.lower():
+                    name = "there"
 
-        # Logic: FOLLOWUP_1 -> FOLLOWUP_2
-        elif intent == "FOLLOWUP_1" and hours_since_last >= THRESHOLD_FOLLOWUP_2_HOURS:
-            print(f"⚡ Triggering Follow-up #2 for {context_id}")
-            msg_body = f"Hey again! Are you still interested? If not, reply 'stop'. Thanks! - {AGENT_NAME}"
-            
-            sid = send_sms(phone, msg_body)
-            if sid:
-                db_client.log_message(
-                    customer_id=customer_id,
-                    channel="sms",
-                    identifier=phone,
-                    direction="outbound",
-                    body=msg_body,
-                    context_id=context_id,
-                    metadata={"twilio_sid": sid, "type": "auto_followup_2"}
-                )
-                db_client.update_conversation(context_id=context_id, intent="FOLLOWUP_2", summary=f"Auto-sent Follow-up #2")
-
-        # Logic: FOLLOWUP_2 -> NURTURE
-        elif intent == "FOLLOWUP_2" and hours_since_last >= THRESHOLD_FOLLOWUP_2_HOURS:
-            print(f"💤 Moving {context_id} to NURTURE")
-            db_client.update_conversation(context_id=context_id, intent="NURTURE", summary="Moved to Nurture (unresponsive)")
+                msg_body = template.replace("{name}", name).replace("{agent_name}", AGENT_NAME)
+                
+                sid = send_sms(phone, msg_body)
+                if sid:
+                    db_client.log_message(
+                        customer_id=customer_id,
+                        channel="sms",
+                        identifier=phone,
+                        direction="outbound",
+                        body=msg_body,
+                        context_id=context_id,
+                        metadata={"twilio_sid": sid, "type": f"auto_{next_intent.lower()}"}
+                    )
+                    db_client.update_conversation(context_id=context_id, intent=next_intent, summary=f"Auto-sent {next_intent}")
+            else:
+                # No template means it's a silent phase transition (e.g. moving to NURTURE)
+                print(f"💤 Moving {context_id} to {next_intent} (Silent)")
+                db_client.update_conversation(context_id=context_id, intent=next_intent, summary=f"Moved to {next_intent} (unresponsive)")
 
 if __name__ == "__main__":
     process_conversations()
