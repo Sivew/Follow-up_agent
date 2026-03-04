@@ -79,17 +79,13 @@ def generate_smart_reply(context_data, user_input):
     
     **YOUR MISSION:**
     Engage naturally. You are NOT a script-reading robot. You are a consultant.
-    - **Use the Dashboard:** If sentiment is 'frustrated', apologize. If intent is 'pricing', pivot to value.
-    - **Use the Dialogue:** Reference specific things they just said. Match their vibe.
-    - **Goal:** Explain our AI solutions (Receptionist, Sales Agents, Chatbots) and nudge for a **45-min consultation** when appropriate.
-
-    **STYLE:**
-    - Intriguing, Real, Professional but Warm.
-    - **Anti-Robot:** Never repeat yourself word-for-word. If they ask the same thing twice, ask clarifying questions instead of repeating the answer.
-    - Language: English or Quebec French (match user).
-    
-    **Handling "What is AI?" (if asked repeatedly):**
-    - Don't just define it again. Ask: "Is there a specific part of the automation (like the booking or the follow-up) you're curious about?"
+    - **Goal:** Explain our AI solutions and nudge for a **45-min consultation**.
+    - **Booking Flow:** 
+      1. If they want to book, ask them what day/time works best for them.
+      2. If they provide a time, YOU MUST call the `manage_appointment` function with action="check_availability" to see if it's open.
+      3. Tell the user what the system replied (e.g. "I have 2 PM or 3 PM, which works?").
+      4. Once they pick an exact time, call `manage_appointment` with action="book_appointment" to lock it in!
+    - **Language:** English or Quebec French (match user).
     """
 
     messages = [
@@ -97,15 +93,96 @@ def generate_smart_reply(context_data, user_input):
         {"role": "user", "content": user_input}
     ]
 
+    functions = [
+        {
+            "name": "manage_appointment",
+            "description": "Call this to check calendar availability or book an appointment for the lead.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["check_availability", "book_appointment"],
+                        "description": "Whether you are checking what times are open, or officially booking a confirmed time."
+                    },
+                    "datetime_string": {
+                        "type": "string",
+                        "description": "The date and time the user wants (e.g., 'Tomorrow at 2pm', 'Next Tuesday morning')."
+                    }
+                },
+                "required": ["action", "datetime_string"]
+            }
+        }
+    ]
+
     try:
         print("DEBUG: Generating Smart Reply...")
         completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=messages,
-            max_tokens=300, # INCREASED from 150 to prevent cutoffs
+            functions=functions,
+            function_call="auto",
+            max_tokens=300,
             temperature=0.7 
         )
-        return completion.choices[0].message.content.strip()
+        
+        response_message = completion.choices[0].message
+        
+        # Check if the model wants to call the webhook function
+        if response_message.get("function_call"):
+            func_name = response_message["function_call"]["name"]
+            try:
+                func_args = json.loads(response_message["function_call"]["arguments"])
+            except:
+                func_args = {}
+                
+            if func_name == "manage_appointment":
+                print(f"DEBUG: AI calling manage_appointment: {func_args}")
+                action = func_args.get("action")
+                dt_str = func_args.get("datetime_string")
+                
+                # Make the Webhook Call
+                webhook_payload = {
+                    "action": action,
+                    "requested_datetime": dt_str,
+                    "phone": customer.get("phone_normalized", "unknown"),
+                    "name": name,
+                    "email": customer.get("email", ""),
+                    "customer_id": context_data.get('customer_id'),
+                    "context_id": context_data.get('context_id'),
+                    "trigger_reason": f"AI requested {action}"
+                }
+                
+                webhook_url = "https://hook.us2.make.com/upoequuxi2bbqc68j07o9b6i552dr951"
+                try:
+                    import requests
+                    wh_resp = requests.post(webhook_url, json=webhook_payload, timeout=10)
+                    function_result = wh_resp.text if wh_resp.text else '{"status": "success", "message": "Request processed but no text returned."}'
+                    print(f"DEBUG: Webhook response: {function_result}")
+                except Exception as e:
+                    function_result = f'{{"status": "error", "message": "Make.com Webhook timeout/error: {e}"}}'
+                    print(function_result)
+
+                # Send the webhook's response back to the LLM
+                messages.append(response_message)
+                messages.append({
+                    "role": "function",
+                    "name": "manage_appointment",
+                    "content": function_result
+                })
+                
+                print("DEBUG: Asking LLM to interpret the webhook result and reply to user...")
+                second_completion = openai.ChatCompletion.create(
+                    model=OPENAI_MODEL,
+                    messages=messages,
+                    max_tokens=300,
+                    temperature=0.7
+                )
+                return second_completion.choices[0].message.content.strip()
+
+        # If no function was called, just return the normal text reply
+        return response_message.content.strip()
+        
     except Exception as e:
         print(f"DEBUG: OpenAI Reply Error: {e}")
         return "I'm analyzing that... one moment."
@@ -291,27 +368,6 @@ def handle_incoming_sms():
                 db_client.update_customer(customer_id=customer_id, name=ext_name, email=ext_email)
             except Exception as ce:
                 print(f"DEBUG: Failed to update customer profile: {ce}")
-                
-        # 5. Trigger Webhook if Appointment Booking requested
-        if state_updates.get("booking_requested") == True:
-            print("DEBUG: User wants to book a call! Triggering Make.com Webhook...")
-            try:
-                import requests
-                customer_profile = context_data.get('customer', {})
-                webhook_payload = {
-                    "phone": sender,
-                    "name": ext_name or customer_profile.get("name", "Unknown"),
-                    "email": ext_email or customer_profile.get("email", ""),
-                    "customer_id": customer_id,
-                    "context_id": context_id,
-                    "summary": state_updates.get("summary", ""),
-                    "trigger_reason": "User requested an appointment/callback in SMS"
-                }
-                webhook_url = "https://hook.us2.make.com/upoequuxi2bbqc68j07o9b6i552dr951"
-                requests.post(webhook_url, json=webhook_payload, timeout=5)
-                print("DEBUG: Webhook successfully triggered.")
-            except Exception as we:
-                print(f"DEBUG: Webhook trigger failed: {we}")
                 
     except Exception as e:
         print(f"DEBUG: Failed to update conversation context: {e}")

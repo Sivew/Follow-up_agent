@@ -3,6 +3,10 @@
 ## 📝 VERSION HISTORY & AI DEV LOGS
 *This section acts as the communication channel between the AI (Wonderbot/Sarah) and the Human Dev Team. Every change to the project will be logged here with the "What" and the "Why".*
 
+### [V2.3] - 2026-03-04 - Function Calling (Tool Use) for Availability & Booking
+*   **What:** Replaced the blind V2.2 webhook POST trigger with native OpenAI Function Calling (`manage_appointment`). The AI now prompts the user for a preferred date/time, automatically queries the Make.com webhook with `action: "check_availability"`, parses the returned slots, and relays them to the user. Once the user confirms a time, the AI calls the function again with `action: "book_appointment"`.
+*   **Why:** Make.com doesn't just receive leads; it checks calendar availability and returns it. The AI needed to be able to pause mid-generation, ask Make.com what times are open, and use that JSON response to craft the final SMS message to the user.
+
 ### [V2.2] - 2026-03-04 - Make.com Booking Webhook Integration
 *   **What:** Upgraded the LLM data extractor in `app.py` to identify if a lead explicitly requests an appointment, demo, or callback. If true, the system dynamically fires a POST request to the Make.com Webhook (`https://hook.us2.make.com/...`). 
 *   **Why:** To transition leads instantly from "chatting via SMS" into the actual booking flow (presumably syncing them to Calendly/GoHighLevel via the Make.com scenario).
