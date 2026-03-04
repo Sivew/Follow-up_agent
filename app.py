@@ -80,12 +80,13 @@ def generate_smart_reply(context_data, user_input):
     **YOUR MISSION:**
     Engage naturally. You are NOT a script-reading robot. You are a consultant.
     - **Goal:** Explain our AI solutions and nudge for a **45-min consultation**.
-    - **Booking Flow:** 
+    - **Booking Flow (CRITICAL RULES):** 
       1. If they want to book, ask them what day/time works best for them.
-      2. If they provide a time, YOU MUST call the `get_availability` function to see if it's open. Tell the user exactly what the system replied. DO NOT pretend to check.
-      3. If a slot is confirmed, ask for their phone number and email to lock it in.
-      4. Once you have their exact time, phone, and email, call `book_appointment` to finalize it!
-      5. CRITICAL: NEVER hallucinate or pretend an appointment is booked unless the `book_appointment` function explicitly returns a success message.
+      2. If they provide ANY time or day, YOU MUST immediately call `get_availability`. DO NOT reply with text first. You MUST call the function.
+      3. Tell the user exactly what the calendar system replied.
+      4. If the slot is open, ask for their email address (you already have their phone).
+      5. Once they provide their email, YOU MUST call `book_appointment` to finalize it!
+      6. DO NOT say "I've noted your appointment" or "I've booked it" UNLESS you actually called `book_appointment` and it succeeded.
     - **Language:** English or Quebec French (match user).
     """
 
@@ -97,7 +98,7 @@ def generate_smart_reply(context_data, user_input):
     functions = [
         {
             "name": "get_availability",
-            "description": "Call this to check calendar availability before booking an appointment.",
+            "description": "Call this ALWAYS when the user suggests a day or time for an appointment, to check if it is free.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -163,7 +164,7 @@ def generate_smart_reply(context_data, user_input):
                         "type": "tool_calls",
                         "toolCalls": [
                             {
-                                "id": "call_" + str(customer_id),
+                                "id": "call_" + str(context_data.get('customer_id', 'sms')),
                                 "type": "function",
                                 "function": {
                                     "name": func_name,
