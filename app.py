@@ -82,9 +82,9 @@ def generate_smart_reply(context_data, user_input):
     - **Goal:** Explain our AI solutions and nudge for a **45-min consultation**.
     - **Booking Flow:** 
       1. If they want to book, ask them what day/time works best for them.
-      2. If they provide a time, YOU MUST call the `manage_appointment` function with action="check_availability" to see if it's open.
-      3. Tell the user what the system replied (e.g. "I have 2 PM or 3 PM, which works?").
-      4. Once they pick an exact time, call `manage_appointment` with action="book_appointment" to lock it in!
+      2. If they provide a time, YOU MUST call the `get_availability` function to see if it's open. Tell the user what the system replied.
+      3. If a slot is confirmed, ask for their phone number and email to lock it in.
+      4. Once you have their exact time, phone, and email, call `book_appointment` to finalize it!
     - **Language:** English or Quebec French (match user).
     """
 
@@ -95,22 +95,39 @@ def generate_smart_reply(context_data, user_input):
 
     functions = [
         {
-            "name": "manage_appointment",
-            "description": "Call this to check calendar availability or book an appointment for the lead.",
+            "name": "get_availability",
+            "description": "Call this to check calendar availability before booking an appointment.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "action": {
-                        "type": "string",
-                        "enum": ["check_availability", "book_appointment"],
-                        "description": "Whether you are checking what times are open, or officially booking a confirmed time."
-                    },
                     "datetime_string": {
                         "type": "string",
                         "description": "The date and time the user wants (e.g., 'Tomorrow at 2pm', 'Next Tuesday morning')."
                     }
                 },
-                "required": ["action", "datetime_string"]
+                "required": ["datetime_string"]
+            }
+        },
+        {
+            "name": "book_appointment",
+            "description": "Call this ONLY after the user has confirmed a specific time slot and provided their phone and email.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "datetime_string": {
+                        "type": "string",
+                        "description": "The exact confirmed date and time to book."
+                    },
+                    "phone_number": {
+                        "type": "string",
+                        "description": "The user's confirmed phone number."
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "The user's confirmed email address."
+                    }
+                },
+                "required": ["datetime_string", "phone_number", "email"]
             }
         }
     ]
@@ -136,21 +153,30 @@ def generate_smart_reply(context_data, user_input):
             except:
                 func_args = {}
                 
-            if func_name == "manage_appointment":
-                print(f"DEBUG: AI calling manage_appointment: {func_args}")
-                action = func_args.get("action")
-                dt_str = func_args.get("datetime_string")
+            if func_name in ["get_availability", "book_appointment"]:
+                print(f"DEBUG: AI calling {func_name}: {func_args}")
                 
-                # Make the Webhook Call
+                # Make the Webhook Call (Matching Vapi Structure for Make.com)
                 webhook_payload = {
-                    "action": action,
-                    "requested_datetime": dt_str,
-                    "phone": customer.get("phone_normalized", "unknown"),
-                    "name": name,
-                    "email": customer.get("email", ""),
-                    "customer_id": context_data.get('customer_id'),
-                    "context_id": context_data.get('context_id'),
-                    "trigger_reason": f"AI requested {action}"
+                    "message": {
+                        "toolCalls": [
+                            {
+                                "id": "call_" + str(customer_id),
+                                "type": "function",
+                                "function": {
+                                    "name": func_name,
+                                    "arguments": json.dumps(func_args)
+                                }
+                            }
+                        ]
+                    },
+                    "customer_data": {
+                        "phone": customer.get("phone_normalized", "unknown"),
+                        "name": name,
+                        "email": customer.get("email", ""),
+                        "customer_id": context_data.get('customer_id'),
+                        "context_id": context_data.get('context_id')
+                    }
                 }
                 
                 webhook_url = "https://hook.us2.make.com/upoequuxi2bbqc68j07o9b6i552dr951"
@@ -167,7 +193,7 @@ def generate_smart_reply(context_data, user_input):
                 messages.append(response_message)
                 messages.append({
                     "role": "function",
-                    "name": "manage_appointment",
+                    "name": func_name,
                     "content": function_result
                 })
                 
