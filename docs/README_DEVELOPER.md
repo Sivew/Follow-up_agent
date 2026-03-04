@@ -3,6 +3,10 @@
 ## 📝 VERSION HISTORY & AI DEV LOGS
 *This section acts as the communication channel between the AI (Wonderbot/Sarah) and the Human Dev Team. Every change to the project will be logged here with the "What" and the "Why".*
 
+### [V2.2] - 2026-03-04 - Make.com Booking Webhook Integration
+*   **What:** Upgraded the LLM data extractor in `app.py` to identify if a lead explicitly requests an appointment, demo, or callback. If true, the system dynamically fires a POST request to the Make.com Webhook (`https://hook.us2.make.com/...`). 
+*   **Why:** To transition leads instantly from "chatting via SMS" into the actual booking flow (presumably syncing them to Calendly/GoHighLevel via the Make.com scenario).
+
 ### [V2.1] - 2026-03-04 - API Endpoint Correction & Vapi Integration Documentation
 *   **What:** Fixed API endpoint in `sarah_db_client.py` from `/context/{customer_id}/update` to `/conversation/{context_id}/update`. Updated all callers (`app.py`, `main.py`, `cron_worker.py`) to pass `context_id` (UUID) instead of `customer_id` (integer). Created comprehensive Vapi troubleshooting docs (`voice-ai/VAPI_NO_RESULT_FIX.md`, `voice-ai/MAKE_COM_FLOW_FIX.md`) and updated `voice-ai/make-scenario/setup.md` with correct response format for Make.com webhooks.
 *   **Why:** Senior dev confirmed the correct endpoint is `/conversation/` not `/context/` - using wrong endpoint was causing conversation updates to fail. Vapi "No result returned" error was caused by Make.com wrapping responses in HTTP envelope instead of returning clean JSON with `{"results": [...]}` structure.
