@@ -113,7 +113,7 @@ def generate_smart_reply(context_data, user_input):
 def update_conversation_state(old_summary, history, user_input, ai_reply):
     """
     Update Summary AND Sentiment based on the exchange.
-    Returns a dict with {summary, sentiment, extracted_name, extracted_email}
+    Returns a dict with {summary, sentiment, extracted_name, extracted_email, booking_requested}
     """
     prompt = f"""
     Analyze this conversation exchange and update the CRM records.
@@ -123,11 +123,12 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
     **Sarah Reply:** "{ai_reply}"
     
     **Task:**
-    Return a JSON object with 4 fields:
+    Return a JSON object with 5 fields:
     1. "summary": Updated concise summary of the whole chat. Include the user's conversational intent.
     2. "sentiment": User's emotional state (positive, neutral, negative, confused).
     3. "extracted_name": The user's name if they mention it (e.g., "I'm Shiva" -> "Shiva"). If unknown or not mentioned, return null.
     4. "extracted_email": The user's email if they provide it. If not, return null.
+    5. "booking_requested": boolean (true/false). Set to true ONLY if the user explicitly asks to book a call, schedule a demo, wants a callback, or wants to talk to a human next. Otherwise false.
     
     Do NOT use Markdown formatting (like ```json). Just return the raw JSON braces.
     """
@@ -137,7 +138,7 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
         completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=200,
+            max_tokens=250,
             temperature=0.3
         )
         response_text = completion.choices[0].message.content.strip()
@@ -158,14 +159,20 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
             
             return {
                 "summary": summary_text,
-                "sentiment": sentiment_val
+                "sentiment": sentiment_val,
+                "extracted_name": parsed_data.get("extracted_name"),
+                "extracted_email": parsed_data.get("extracted_email"),
+                "booking_requested": parsed_data.get("booking_requested", False)
             }
         except json.JSONDecodeError:
             print(f"DEBUG: Failed to parse JSON from AI: {response_text}")
             # Fallback: Just return the raw text as summary if it wasn't valid JSON
             return {
                 "summary": response_text[:200] + "..." if len(response_text) > 200 else response_text,
-                "sentiment": "neutral"
+                "sentiment": "neutral",
+                "extracted_name": None,
+                "extracted_email": None,
+                "booking_requested": False
             }
             
     except Exception as e:
@@ -284,6 +291,27 @@ def handle_incoming_sms():
                 db_client.update_customer(customer_id=customer_id, name=ext_name, email=ext_email)
             except Exception as ce:
                 print(f"DEBUG: Failed to update customer profile: {ce}")
+                
+        # 5. Trigger Webhook if Appointment Booking requested
+        if state_updates.get("booking_requested") == True:
+            print("DEBUG: User wants to book a call! Triggering Make.com Webhook...")
+            try:
+                import requests
+                customer_profile = context_data.get('customer', {})
+                webhook_payload = {
+                    "phone": sender,
+                    "name": ext_name or customer_profile.get("name", "Unknown"),
+                    "email": ext_email or customer_profile.get("email", ""),
+                    "customer_id": customer_id,
+                    "context_id": context_id,
+                    "summary": state_updates.get("summary", ""),
+                    "trigger_reason": "User requested an appointment/callback in SMS"
+                }
+                webhook_url = "https://hook.us2.make.com/upoequuxi2bbqc68j07o9b6i552dr951"
+                requests.post(webhook_url, json=webhook_payload, timeout=5)
+                print("DEBUG: Webhook successfully triggered.")
+            except Exception as we:
+                print(f"DEBUG: Webhook trigger failed: {we}")
                 
     except Exception as e:
         print(f"DEBUG: Failed to update conversation context: {e}")
