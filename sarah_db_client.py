@@ -152,3 +152,29 @@ class SarahDBClient:
             return resp.json()
         except requests.exceptions.RequestException as e:
             raise Exception(f"Failed to update conversation {context_id}: {str(e)}")
+
+    def update_customer(self, customer_id: int, name: Optional[str] = None, email: Optional[str] = None, company: Optional[str] = None) -> Dict[str, Any]:
+        """Update existing customer details by ID."""
+        if not customer_id:
+            raise ValueError("Customer ID is required for update")
+        
+        payload = {}
+        if name: payload["name"] = name
+        if email: payload["email"] = email
+        if company: payload["company"] = company
+        
+        if not payload:
+            return {"status": "no_changes"}
+            
+        url = f"{self.BASE_URL}/customers/{customer_id}"
+        
+        try:
+            # Using PUT based on API Guide v2 (or POST if the API supports it interchangeably)
+            resp = requests.put(url, json=payload, headers=self.headers, timeout=10)
+            if resp.status_code in [404, 405]:
+                # Fallback to POST if PUT is rejected by API Gateway config
+                resp = requests.post(url, json=payload, headers=self.headers, timeout=10)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"Failed to update customer {customer_id}: {str(e)}")

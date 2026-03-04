@@ -113,7 +113,7 @@ def generate_smart_reply(context_data, user_input):
 def update_conversation_state(old_summary, history, user_input, ai_reply):
     """
     Update Summary AND Sentiment based on the exchange.
-    Returns a dict with {summary, sentiment}
+    Returns a dict with {summary, sentiment, extracted_name, extracted_email}
     """
     prompt = f"""
     Analyze this conversation exchange and update the CRM records.
@@ -123,9 +123,11 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
     **Sarah Reply:** "{ai_reply}"
     
     **Task:**
-    Return a JSON object with 2 fields:
-    1. "summary": Updated concise summary of the whole chat. Include the user's conversational intent (e.g., pricing_inquiry, technical_question) inside this text.
+    Return a JSON object with 4 fields:
+    1. "summary": Updated concise summary of the whole chat. Include the user's conversational intent.
     2. "sentiment": User's emotional state (positive, neutral, negative, confused).
+    3. "extracted_name": The user's name if they mention it (e.g., "I'm Shiva" -> "Shiva"). If unknown or not mentioned, return null.
+    4. "extracted_email": The user's email if they provide it. If not, return null.
     
     Do NOT use Markdown formatting (like ```json). Just return the raw JSON braces.
     """
@@ -135,7 +137,7 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
         completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
+            max_tokens=200,
             temperature=0.3
         )
         response_text = completion.choices[0].message.content.strip()
@@ -272,6 +274,17 @@ def handle_incoming_sms():
             intent="WAITING_FOR_ANSWER", 
             last_agent_action="AI Replied via SMS"
         )
+        
+        # 4. Update Customer if new info found
+        ext_name = state_updates.get("extracted_name")
+        ext_email = state_updates.get("extracted_email")
+        if ext_name or ext_email:
+            print(f"DEBUG: Found new customer info - Name: {ext_name}, Email: {ext_email}")
+            try:
+                db_client.update_customer(customer_id=customer_id, name=ext_name, email=ext_email)
+            except Exception as ce:
+                print(f"DEBUG: Failed to update customer profile: {ce}")
+                
     except Exception as e:
         print(f"DEBUG: Failed to update conversation context: {e}")
 
