@@ -1,6 +1,7 @@
 import os
 import time
 import json
+import openai
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from sarah_db_client import SarahDBClient
@@ -17,6 +18,10 @@ TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
 TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 AGENT_NAME = os.getenv("AGENT_NAME", "Wonderbot")
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+openai.api_key = OPENAI_API_KEY
+
 # Initialize Clients
 db_client = SarahDBClient(api_key=API_KEY)
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
@@ -25,6 +30,41 @@ twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 STRATEGY_FILE = os.path.join(os.path.dirname(__file__), "followup_strategy.json")
 with open(STRATEGY_FILE, "r") as f:
     STRATEGY = json.load(f)
+
+def generate_smart_followup(context, instruction, customer_name):
+    """Uses LLM to generate a contextual follow-up message."""
+    history = context.get("history", [])
+    recent_history = history[-4:] if len(history) >= 4 else history
+    summary = context.get("summary", "No summary available.")
+    
+    prompt = f"""
+    You are {AGENT_NAME}, an AI assistant following up with a lead named {customer_name}.
+    
+    Current conversation summary:
+    "{summary}"
+    
+    Recent message history:
+    {json.dumps(recent_history, indent=2)}
+    
+    Task / Instruction for this follow-up:
+    {instruction}
+    
+    Draft a short, natural, friendly SMS text message (max 160 chars) to send them right now. 
+    Make sure it feels like a natural continuation of the history.
+    Do NOT include quotes around the message. Just return the raw text.
+    """
+    try:
+        completion = openai.ChatCompletion.create(
+            model=OPENAI_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=100,
+            temperature=0.7
+        )
+        return completion.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"❌ OpenAI Error: {e}")
+        # Fallback message if LLM fails
+        return f"Hi {customer_name}, just bumping this up! Did you have any thoughts on my last message? - {AGENT_NAME}"
 
 def send_sms(to_number, body):
     """Sends SMS via Twilio and logs it to the DB."""
@@ -98,12 +138,12 @@ def process_conversations():
         rule = STRATEGY[intent]
         wait_minutes = rule.get("wait_minutes", 0)
         next_intent = rule.get("next_intent")
-        template = rule.get("template")
+        instruction = rule.get("instruction")
 
         if mins_since_last >= wait_minutes:
             print(f"⚡ Triggering rule {intent} -> {next_intent} for {context_id}")
             
-            if template:
+            if instruction:
                 # Personalize Template
                 customer_data = context.get("customer", {})
                 phone = customer_data.get("phone_normalized") or customer_data.get("phone")
@@ -111,7 +151,8 @@ def process_conversations():
                 if not name or name.lower() == "test user" or "unknown" in name.lower():
                     name = "there"
 
-                msg_body = template.replace("{name}", name).replace("{agent_name}", AGENT_NAME)
+                print(f"DEBUG: Generating AI follow-up for {name}...")
+                msg_body = generate_smart_followup(context, instruction, name)
                 
                 sid = send_sms(phone, msg_body)
                 if sid:
@@ -124,7 +165,12 @@ def process_conversations():
                         context_id=context_id,
                         metadata={"twilio_sid": sid, "type": f"auto_{next_intent.lower()}"}
                     )
-                    db_client.update_conversation(context_id=context_id, intent=next_intent, summary=f"Auto-sent {next_intent}")
+                    
+                    # Update summary dynamically to reflect the sent message
+                    current_summary = context.get("summary", "")
+                    updated_summary = f"{current_summary}\n\n[System Update] Sarah auto-sent follow-up: {msg_body[:40]}..."
+                    
+                    db_client.update_conversation(context_id=context_id, intent=next_intent, summary=updated_summary)
             else:
                 # No template means it's a silent phase transition (e.g. moving to NURTURE)
                 print(f"💤 Moving {context_id} to {next_intent} (Silent)")
