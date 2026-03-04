@@ -74,15 +74,12 @@ def generate_smart_reply(context_data, user_input):
     - **Sentiment:** {sentiment}
     - **Long-Term Memory:** "{summary}"
     
-    **RECENT DIALOGUE (The Flow):**
-    {recent_dialogue}
-    
     **YOUR MISSION:**
     Engage naturally. You are NOT a script-reading robot. You are a consultant.
     - **Goal:** Explain our AI solutions and nudge for a **45-min consultation**.
     - **Booking Flow (CRITICAL RULES):** 
-      1. If they want to book, ask them what day/time works best for them.
-      2. If they provide ANY time or day, YOU MUST immediately call `get_availability`. DO NOT reply with text first. You MUST call the function.
+      1. YOU HAVE REAL-TIME CALENDAR ACCESS VIA THE `get_availability` FUNCTION! NEVER say you don't have access.
+      2. If they provide ANY time or day, YOU MUST immediately call `get_availability` to check it. DO NOT reply with text first.
       3. Tell the user exactly what the calendar system replied.
       4. If the slot is open, ask for their email address (you already have their phone).
       5. Once they provide their email, YOU MUST call `book_appointment` to finalize it!
