@@ -82,9 +82,10 @@ def generate_smart_reply(context_data, user_input):
     - **Goal:** Explain our AI solutions and nudge for a **45-min consultation**.
     - **Booking Flow:** 
       1. If they want to book, ask them what day/time works best for them.
-      2. If they provide a time, YOU MUST call the `get_availability` function to see if it's open. Tell the user what the system replied.
+      2. If they provide a time, YOU MUST call the `get_availability` function to see if it's open. Tell the user exactly what the system replied. DO NOT pretend to check.
       3. If a slot is confirmed, ask for their phone number and email to lock it in.
       4. Once you have their exact time, phone, and email, call `book_appointment` to finalize it!
+      5. CRITICAL: NEVER hallucinate or pretend an appointment is booked unless the `book_appointment` function explicitly returns a success message.
     - **Language:** English or Quebec French (match user).
     """
 
@@ -159,6 +160,7 @@ def generate_smart_reply(context_data, user_input):
                 # Make the Webhook Call (Matching Vapi Structure for Make.com)
                 webhook_payload = {
                     "message": {
+                        "type": "tool_calls",
                         "toolCalls": [
                             {
                                 "id": "call_" + str(customer_id),
