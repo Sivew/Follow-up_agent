@@ -3,6 +3,14 @@
 ## 📝 VERSION HISTORY & AI DEV LOGS
 *This section acts as the communication channel between the AI (Wonderbot/Sarah) and the Human Dev Team. Every change to the project will be logged here with the "What" and the "Why".*
 
+### [V2.5] - 2026-03-05 - Externalized Configuration for Multi-Client Deployment
+*   **What:** Removed hardcoded URLs. Added required env vars: `MAKE_WEBHOOK_URL` (calendar integration), `CORE_API_URL` (API base URL). Updated `.env.example`, `docker-compose.yml`, and Python files to use these variables.
+*   **Why:** Multi-client deployment. Each client needs unique Make.com webhook and potentially different API endpoints. Zero code changes per deployment now.
+
+### [V2.4] - 2026-03-05 - Vapi Call Logging via Make.com
+*   **What:** Created comprehensive implementation guide for logging Vapi voice calls to Sarah's database via Make.com webhooks (`voice-ai/VAPI_CALL_LOGGING.md`). Implemented end-of-call workflow that mirrors SMS conversation tracking: logs full transcript (POST /log with `channel: "voice"`), uses OpenAI to analyze call and extract summary/sentiment/intent/customer info, updates conversation state (POST /conversation/{context_id}/update), and conditionally updates customer profile (PATCH /customer/{customer_id}). Created API templates (`voice-ai/api/vapi-log-call.json`, `voice-ai/api/vapi-update-conversation.json`) with Make.com configuration examples.
+*   **Why:** Vapi voice calls need to be tracked in the CRM just like SMS conversations. The Make.com scenario listens for Vapi's `end-of-call-report` webhook, processes the transcript, and updates Sarah's database to maintain unified conversation history across voice and text channels. Intent logic ensures answered calls mark leads as ENGAGED/HOT_LEAD (stopping automation), while voicemails/no-answers keep current automation state (continuing follow-ups).
+
 ### [V2.3] - 2026-03-04 - Function Calling (Tool Use) for Availability & Booking
 *   **What:** Replaced the blind V2.2 webhook POST trigger with native OpenAI Function Calling (`manage_appointment`). The AI now prompts the user for a preferred date/time, automatically queries the Make.com webhook with `action: "check_availability"`, parses the returned slots, and relays them to the user. Once the user confirms a time, the AI calls the function again with `action: "book_appointment"`.
 *   **Why:** Make.com doesn't just receive leads; it checks calendar availability and returns it. The AI needed to be able to pause mid-generation, ask Make.com what times are open, and use that JSON response to craft the final SMS message to the user.
@@ -39,6 +47,25 @@ We have moved from **Static Automation (V1)** to **Intelligent CRM Sync (V2)**.
 
 ---
 
+## 🚀 OPS DEPLOYMENT NOTES (V2.5 Changes)
+
+### **New Environment Variables Required:**
+
+```bash
+CORE_API_URL=https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod  # Optional (has default)
+MAKE_WEBHOOK_URL=https://hook.us2.make.com/client_webhook_id                  # REQUIRED per client
+```
+
+### **Multi-Client Deployment:**
+- `MAKE_WEBHOOK_URL` - **Must be unique per client** (their Make.com scenario)
+- `TWILIO_*` - Client-specific credentials
+- `CORE_API_KEY` - Client-specific if multi-tenant
+- See `.env.example` for complete reference
+
+⚠️ **App will log warning on startup if `MAKE_WEBHOOK_URL` is missing - calendar booking will fail.**
+
+---
+
 ## 🛠️ Setup Instructions
 
 ### 1. Prerequisites
@@ -60,33 +87,19 @@ pip install requests python-dotenv twilio openai
 ```
 
 ### 3. Configuration (.env)
-Create a `.env` file in this directory:
-```ini
-CORE_API_KEY=your_actual_api_key_here
-TWILIO_ACCOUNT_SID=your_twilio_sid
-TWILIO_AUTH_TOKEN=your_twilio_auth_token
-TWILIO_PHONE_NUMBER=your_twilio_number
-AGENT_NAME=Sarah
-OPENAI_API_KEY=your_openai_key
-OPENAI_MODEL=gpt-4o-mini
-```
+
+Copy `.env.example` to `.env` and configure. New required variables as of V2.5:
+- `CORE_API_URL` - API base URL (optional, has default)
+- `MAKE_WEBHOOK_URL` - Make.com calendar webhook (required per client)
 
 ### 4. Running the Automation
 The system has two parts:
 
 **A. Inbound Webhook (`app.py`)**
-Handles incoming SMS replies, generates smart responses, extracts CRM data, and updates the database.
-```bash
-# Run with Flask/Gunicorn via Docker
-docker-compose up -d --build
-```
+Handles incoming SMS, generates AI responses, extracts CRM data. Deploy via `docker-compose up -d --build`.
 
 **B. Outbound Worker (`cron_worker.py`)**
-Checks for unresponsive leads via `followup_strategy.json` rules and sends LLM-generated follow-ups. Designed to run via Cron.
-```bash
-# Cron setup (Every 5 mins)
-*/5 * * * * /path/to/venv/bin/python /path/to/cron_worker.py >> /var/log/sarah_worker.log 2>&1
-```
+Checks unresponsive leads, sends LLM-generated follow-ups per `followup_strategy.json` rules.
 
 ---
 

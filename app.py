@@ -30,11 +30,14 @@ q = Queue(connection=redis.Redis.from_url(redis_url))
 CORE_API_KEY = os.getenv('CORE_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+MAKE_WEBHOOK_URL = os.getenv('MAKE_WEBHOOK_URL')
 
 if not CORE_API_KEY:
     logger.error("CORE_API_KEY is missing!")
 if not OPENAI_API_KEY:
     logger.error("OPENAI_API_KEY is missing!")
+if not MAKE_WEBHOOK_URL:
+    logger.warning("MAKE_WEBHOOK_URL is missing - calendar booking will not work!")
 
 # Initialize Clients
 openai.api_key = OPENAI_API_KEY
@@ -186,15 +189,18 @@ def generate_smart_reply(context_data, user_input):
                     }
                 }
                 
-                webhook_url = "https://hook.us2.make.com/upoequuxi2bbqc68j07o9b6i552dr951"
-                try:
-                    import requests
-                    wh_resp = requests.post(webhook_url, json=webhook_payload, timeout=10)
-                    function_result = wh_resp.text if wh_resp.text else '{"status": "success", "message": "Request processed but no text returned."}'
-                    print(f"DEBUG: Webhook response: {function_result}")
-                except Exception as e:
-                    function_result = f'{{"status": "error", "message": "Make.com Webhook timeout/error: {e}"}}'
-                    print(function_result)
+                if not MAKE_WEBHOOK_URL:
+                    function_result = '{"status": "error", "message": "MAKE_WEBHOOK_URL environment variable not configured"}'
+                    print(f"❌ {function_result}")
+                else:
+                    try:
+                        import requests
+                        wh_resp = requests.post(MAKE_WEBHOOK_URL, json=webhook_payload, timeout=10)
+                        function_result = wh_resp.text if wh_resp.text else '{"status": "success", "message": "Request processed but no text returned."}'
+                        print(f"DEBUG: Webhook response: {function_result}")
+                    except Exception as e:
+                        function_result = f'{{"status": "error", "message": "Make.com Webhook timeout/error: {e}"}}'
+                        print(function_result)
 
                 # Send the webhook's response back to the LLM
                 messages.append(response_message)

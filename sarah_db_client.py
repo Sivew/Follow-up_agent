@@ -6,15 +6,17 @@ from typing import Optional, Dict, Any
 class SarahDBClient:
     """
     Client for the Lead Conversation Management System API.
-    Base URL: https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod
+    Base URL configurable via CORE_API_URL environment variable.
     """
     
-    BASE_URL = "https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod"
-
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, base_url: Optional[str] = None):
         if not api_key:
             raise ValueError("API Key is required")
         self.api_key = api_key
+        self.base_url = base_url or os.getenv(
+            'CORE_API_URL', 
+            'https://lpodk9ddwa.execute-api.ca-central-1.amazonaws.com/prod'
+        )
         self.headers = {
             "x-api-key": self.api_key,
             "Content-Type": "application/json"
@@ -38,7 +40,7 @@ class SarahDBClient:
         if name: payload["name"] = name
         if phone_normalized: payload["phone_normalized"] = phone_normalized
         
-        url = f"{self.BASE_URL}/customers"
+        url = f"{self.base_url}/customers"
         
         try:
             resp = requests.post(url, json=payload, headers=self.headers, timeout=10)
@@ -49,7 +51,7 @@ class SarahDBClient:
 
     def list_customers(self, limit: int = 100, offset: int = 0) -> dict:
         """List all customers."""
-        url = f"{self.BASE_URL}/customers?limit={limit}&offset={offset}"
+        url = f"{self.base_url}/customers?limit={limit}&offset={offset}"
         try:
             resp = requests.get(url, headers=self.headers, timeout=10)
             resp.raise_for_status()
@@ -70,7 +72,7 @@ class SarahDBClient:
         # URL encode the identifier (critical for emails/phones with +)
         encoded_id = urllib.parse.quote(identifier, safe='')
         
-        url = f"{self.BASE_URL}/context/{encoded_id}?by={lookup_by}"
+        url = f"{self.base_url}/context/{encoded_id}?by={lookup_by}"
         
         try:
             resp = requests.get(url, headers=self.headers, timeout=10)
@@ -109,7 +111,7 @@ class SarahDBClient:
         if metadata:
             payload["metadata"] = metadata
 
-        url = f"{self.BASE_URL}/log"
+        url = f"{self.base_url}/log"
         
         try:
             resp = requests.post(url, json=payload, headers=self.headers, timeout=10)
@@ -144,7 +146,7 @@ class SarahDBClient:
             return {"status": "no_changes"}
 
         # CORRECT endpoint: /conversation/{context_id}/update (not /context/)
-        url = f"{self.BASE_URL}/conversation/{context_id}/update"
+        url = f"{self.base_url}/conversation/{context_id}/update"
         
         try:
             resp = requests.post(url, json=payload, headers=self.headers, timeout=10)
@@ -166,7 +168,7 @@ class SarahDBClient:
         if not payload:
             return {"status": "no_changes"}
             
-        url = f"{self.BASE_URL}/customers/{customer_id}"
+        url = f"{self.base_url}/customers/{customer_id}"
         
         try:
             # Using PUT based on API Guide v2 (or POST if the API supports it interchangeably)
