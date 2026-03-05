@@ -36,22 +36,34 @@ def generate_smart_followup(context, instruction, customer_name):
     history = context.get("history", [])
     recent_history = history[-4:] if len(history) >= 4 else history
     summary = context.get("summary", "No summary available.")
+    product_interest = context.get("product_interest", "")
+    
+    # Add product context if available
+    product_context = ""
+    if product_interest:
+        product_map = {
+            "ai_receptionist": "AI Receptionist",
+            "ai_sales_agent": "AI Sales Agents",
+            "ai_chatbot": "AI Chatbots",
+            "custom_automation": "Custom Automation Agents"
+        }
+        product_context = f"\n\nThey showed interest in: {product_map.get(product_interest, product_interest)}"
     
     prompt = f"""
-    You are {AGENT_NAME}, an AI assistant following up with a lead named {customer_name}.
-    
-    Current conversation summary:
-    "{summary}"
-    
-    Recent message history:
-    {json.dumps(recent_history, indent=2)}
-    
-    Task / Instruction for this follow-up:
-    {instruction}
-    
-    Draft a short, natural, friendly SMS text message (max 160 chars) to send them right now. 
-    Make sure it feels like a natural continuation of the history.
-    Do NOT include quotes around the message. Just return the raw text.
+You are {AGENT_NAME}, an AI assistant following up with a lead named {customer_name}.
+
+Current conversation summary:
+"{summary}"{product_context}
+
+Recent message history:
+{json.dumps(recent_history, indent=2)}
+
+Task / Instruction for this follow-up:
+{instruction}
+
+Draft a short, natural, friendly SMS text message (max 160 chars) to send them right now. 
+Make sure it feels like a natural continuation of the history.
+Do NOT include quotes around the message. Just return the raw text.
     """
     try:
         completion = openai.ChatCompletion.create(

@@ -2,16 +2,16 @@
   "WAITING_FOR_ANSWER": {
     "next_intent": "FOLLOWUP_1",
     "wait_minutes": 30,
-    "instruction": "Send a very short, friendly follow-up asking if they had any thoughts or questions about your last message. Keep it conversational and natural, like a quick check-in text."
+    "instruction": "Send a brief follow-up that adds value. Reference what they mentioned they were interested in. Example: If they asked about chatbots, say 'Quick thought on your chatbot question — most clients see results in the first week. Happy to share how if you're curious.' Keep it under 160 chars."
   },
   "FOLLOWUP_1": {
     "next_intent": "FOLLOWUP_2",
     "wait_minutes": 1440,
-    "instruction": "Send a casual bump asking if they are still interested in continuing the conversation. Mention that if they aren't, they can just let you know or reply 'stop'. Keep it polite and no-pressure."
+    "instruction": "Offer an alternative to texting. Say something like: 'Hey {name}, would a quick call be easier? I can explain everything in 5 min. Just let me know!' This pivots from text to voice. Under 160 chars."
   },
   "FOLLOWUP_2": {
     "next_intent": "NURTURE",
-    "wait_minutes": 1440,
-    "instruction": null
+    "wait_minutes": 2880,
+    "instruction": "Soft close with an open door. Example: 'No worries if now isn't the right time. Feel free to reach out whenever you're ready to explore AI for your business. - Sarah' Under 160 chars."
   }
 }

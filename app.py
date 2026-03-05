@@ -69,26 +69,70 @@ def generate_smart_reply(context_data, user_input):
 
     # 3. Construct the 'Omniscient' Prompt
     system_prompt = f"""
-    You are Sarah, the intelligent AI partner for **Kalkia Évolution IA**.
-    
-    **YOUR DASHBOARD (CONTEXT):**
-    - **Customer Name:** {name}
-    - **Current Intent:** {intent}
-    - **Sentiment:** {sentiment}
-    - **Long-Term Memory:** "{summary}"
-    
-    **YOUR MISSION:**
-    Engage naturally. You are NOT a script-reading robot. You are a consultant.
-    - **Goal:** Explain our AI solutions and nudge for a **45-min consultation**.
-    - **Booking Flow (CRITICAL RULES):** 
-      1. YOU HAVE REAL-TIME CALENDAR ACCESS VIA THE `get_availability` FUNCTION! NEVER say you don't have access.
-      2. If they provide ANY time or day, YOU MUST immediately call `get_availability` to check it. DO NOT reply with text first.
-      3. Tell the user exactly what the calendar system replied.
-      4. If the slot is open, ask for their email address (you already have their phone).
-      5. Once they provide their email, YOU MUST call `book_appointment` to finalize it!
-      6. DO NOT say "I've noted your appointment" or "I've booked it" UNLESS you actually called `book_appointment` and it succeeded.
-      7. **If the user asks for a booking or it is confirmed, STOP ASKING QUESTIONS. Do NOT ask what they want to discuss. Just confirm the time, thank them, and be extremely brief.**
-    - **Language:** English or Quebec French (match user).
+You are Sarah, an AI consultant for **Kalkia Évolution IA** — we help businesses automate and scale using AI.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 YOUR DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- **Lead Name:** {name}
+- **Current Stage:** {intent}
+- **Sentiment:** {sentiment}
+- **Conversation Summary:** "{summary}"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 YOUR MISSION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+**Goal:** Qualify leads and get them on a call. You succeed when you book a consultation OR get permission to call them.
+
+**Strategy:** DISCOVER → QUALIFY → ESCALATE
+
+1. **DISCOVER** (if you don't know yet):
+   - What's their business or role?
+   - What problem are they trying to solve?
+
+2. **QUALIFY** (gauge fit & urgency):
+   - Are they exploring or actively looking for a solution?
+   - Do they have a timeline? ("soon", "this quarter", "just researching")
+   - Are they the decision-maker or gathering info for someone?
+
+3. **ESCALATE** (based on interest signals):
+   - **Warm signals:** Asks questions, engages positively, mentions a problem
+     → Proactively suggest: "Would a quick 5-min call be easier? I can explain more clearly over the phone."
+   - **Hot signals:** Asks about pricing, timeline, implementation, or says they're "ready"
+     → Offer immediate call: "Want me to call you right now? I can answer everything in 2 minutes."
+   - If they agree to a call → ask "What's a good time? I can call you in the next few minutes, or we can schedule."
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🛠️ WHAT WE OFFER (match to their need)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. **AI Receptionist** – Bilingual, books appointments, takes orders, sends confirmations
+2. **AI Sales Agents** – Makes calls to close deals or capture leads
+3. **AI Chatbots** – Website or business ecosystem integration
+4. **Custom Automation Agents** – Tailored workflows for business processes
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 BOOKING FLOW (when they want to schedule)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. If they mention a day/time → call `get_availability` immediately (don't reply first)
+2. If slot is open → confirm and ask for their email (you have their phone)
+3. Once you have email → call `book_appointment` to finalize
+⚠️ NEVER say "booked" unless `book_appointment` succeeded.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💬 COMMUNICATION STYLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- **Language:** Match the user (English or Quebec French)
+- **Tone:** Warm, consultative, confident — NOT robotic or salesy
+- **Length:** Keep messages short (2-3 sentences max for SMS)
+- **Be proactive:** Don't wait for them to ask to book — if they're interested, suggest it
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚫 AVOID
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Don't over-explain products in text — save details for the call
+- Don't ask multiple questions at once — one question per message
+- Don't say you can't check calendar — you CAN via `get_availability`
+- After booking confirmed, don't ask more questions — just confirm & thank them
     """
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -229,24 +273,51 @@ def generate_smart_reply(context_data, user_input):
 def update_conversation_state(old_summary, history, user_input, ai_reply):
     """
     Update Summary AND Sentiment based on the exchange.
-    Returns a dict with {summary, sentiment, extracted_name, extracted_email, booking_requested}
+    Returns a dict with {summary, sentiment, extracted_name, extracted_email, booking_requested, interest_level, product_interest, call_recommended}
     """
     prompt = f"""
-    Analyze this conversation exchange and update the CRM records.
-    
-    **Old Summary:** "{old_summary}"
-    **User Input:** "{user_input}"
-    **Sarah Reply:** "{ai_reply}"
-    
-    **Task:**
-    Return a JSON object with 5 fields:
-    1. "summary": Updated concise summary of the whole chat. Include the user's conversational intent.
-    2. "sentiment": User's emotional state (positive, neutral, negative, confused).
-    3. "extracted_name": The user's name if they mention it (e.g., "I'm Shiva" -> "Shiva"). If unknown or not mentioned, return null.
-    4. "extracted_email": The user's email if they provide it. If not, return null.
-    5. "booking_requested": boolean (true/false). Set to true ONLY if the user explicitly asks to book a call, schedule a demo, wants a callback, or wants to talk to a human next. Otherwise false.
-    
-    Do NOT use Markdown formatting (like ```json). Just return the raw JSON braces.
+Analyze this conversation exchange and update the CRM records.
+
+**Context:**
+- Old Summary: "{old_summary}"
+- User Message: "{user_input}"
+- Sarah's Reply: "{ai_reply}"
+
+**Task:** Return a JSON object with these fields:
+
+1. "summary": Updated concise summary (include what product/problem they discussed)
+
+2. "sentiment": User's emotional state
+   - "positive" = engaged, interested, friendly
+   - "neutral" = just responding, unclear intent
+   - "negative" = frustrated, annoyed, objecting
+   - "confused" = unclear, asking for clarification
+
+3. "extracted_name": User's name if mentioned (e.g., "I'm Shiva" → "Shiva"), else null
+
+4. "extracted_email": User's email if provided, else null
+
+5. "booking_requested": true ONLY if user explicitly asks to book/schedule/get a callback
+
+6. "interest_level": Assess their buying intent
+   - "hot" = mentions timeline, asks about pricing, says they're ready, wants to talk now
+   - "warm" = asks questions, engages positively, describes a problem they have
+   - "cold" = short replies, seems uninterested, just browsing
+
+7. "product_interest": Which product they seem most interested in (or null):
+   - "ai_receptionist"
+   - "ai_sales_agent"
+   - "ai_chatbot"
+   - "custom_automation"
+   - null (if unclear)
+
+8. "call_recommended": true if Sarah should offer to call them NOW based on:
+   - They asked multiple questions
+   - They described a specific pain point
+   - Sentiment is positive and they're engaged
+   - They asked about pricing or timeline
+
+Return raw JSON only (no markdown formatting).
     """
 
     try:
@@ -254,7 +325,7 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
         completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=250,
+            max_tokens=350,
             temperature=0.3
         )
         response_text = completion.choices[0].message.content.strip()
@@ -278,7 +349,10 @@ def update_conversation_state(old_summary, history, user_input, ai_reply):
                 "sentiment": sentiment_val,
                 "extracted_name": parsed_data.get("extracted_name"),
                 "extracted_email": parsed_data.get("extracted_email"),
-                "booking_requested": parsed_data.get("booking_requested", False)
+                "booking_requested": parsed_data.get("booking_requested", False),
+                "interest_level": parsed_data.get("interest_level", "cold"),
+                "product_interest": parsed_data.get("product_interest"),
+                "call_recommended": parsed_data.get("call_recommended", False)
             }
         except json.JSONDecodeError:
             print(f"DEBUG: Failed to parse JSON from AI: {response_text}")
@@ -385,10 +459,17 @@ def handle_incoming_sms():
         # Get AI analysis (dictionary)
         state_updates = update_conversation_state(current_summary, history, body, reply_text)
         
-        # Decide the new intent based on booking request
+        # Decide the new intent based on booking request or interest level
         # If booking is requested, flag as HOT_LEAD to stop follow-up cron loops!
         is_booking_req = state_updates.get("booking_requested", False)
-        new_intent = "HOT_LEAD" if is_booking_req else "WAITING_FOR_ANSWER"
+        interest_level = state_updates.get("interest_level", "cold")
+        call_recommended = state_updates.get("call_recommended", False)
+        
+        # Mark as HOT_LEAD if booking requested OR if they're hot and call is recommended
+        if is_booking_req or (interest_level == "hot" and call_recommended):
+            new_intent = "HOT_LEAD"
+        else:
+            new_intent = "WAITING_FOR_ANSWER"
 
         # Update DB:
         db_client.update_conversation(
@@ -399,15 +480,49 @@ def handle_incoming_sms():
             last_agent_action="AI Replied via SMS"
         )
         
+        # Store new fields in conversation metadata (for future use)
+        try:
+            # You can extend the DB schema later to store these fields
+            # For now, we'll log them for visibility
+            print(f"DEBUG: Interest Level: {interest_level}, Product Interest: {state_updates.get('product_interest')}, Call Recommended: {call_recommended}")
+        except Exception as meta_err:
+            print(f"DEBUG: Failed to log metadata: {meta_err}")
+        
         # 4. Update Customer if new info found
         ext_name = state_updates.get("extracted_name")
         ext_email = state_updates.get("extracted_email")
+        product_interest = state_updates.get("product_interest")
+        
         if ext_name or ext_email:
             print(f"DEBUG: Found new customer info - Name: {ext_name}, Email: {ext_email}")
             try:
                 db_client.update_customer(customer_id=customer_id, name=ext_name, email=ext_email)
             except Exception as ce:
                 print(f"DEBUG: Failed to update customer profile: {ce}")
+        
+        # 5. Voice Call Trigger Logic (VAPI Integration)
+        # TODO: Implement VAPI call trigger when conditions are met
+        # Trigger conditions:
+        # - call_recommended == True (AI detected strong engagement)
+        # - interest_level == "hot" (mentions timeline, pricing, ready to talk)
+        # - User agrees to a call offer in the conversation
+        #
+        # Implementation steps:
+        # 1. Add VAPI_WEBHOOK_URL to .env file
+        # 2. Create a trigger_vapi_call() helper function that:
+        #    - Calls VAPI API to initiate outbound call
+        #    - Passes customer context (name, summary, product_interest)
+        # 3. Uncomment the logic below:
+        #
+        # if call_recommended and interest_level in ["warm", "hot"]:
+        #     # Check if we've already offered a call in this conversation
+        #     already_offered = any("call you" in msg.get("message_body", "").lower() 
+        #                          for msg in history[-3:] if msg.get("direction") == "outbound")
+        #     
+        #     if not already_offered:
+        #         # VAPI will be triggered when user responds "yes" to Sarah's call offer
+        #         # Sarah's prompt already includes language to offer calls proactively
+        #         print(f"DEBUG: Call recommended for {ext_name or 'customer'} - Sarah should offer call")
                 
     except Exception as e:
         print(f"DEBUG: Failed to update conversation context: {e}")
