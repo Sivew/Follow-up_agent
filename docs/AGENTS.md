@@ -1,5 +1,14 @@
 # AGENTS.md - Developer Guide for Follow-up Agent
 
+## ⚠️ CRITICAL: Git Workflow for AI Agents
+
+**ALWAYS pull before making any file changes:**
+```bash
+git pull origin main
+```
+
+This prevents merge conflicts and rebases. Pull first, then edit, then commit and push.
+
 ## Project Overview
 
 SMS automation bot for real estate lead follow-up. Built with Python (Flask), Twilio, Redis/RQ, and OpenAI. Uses Core API (Sarah DB) for CRM functionality.
