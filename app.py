@@ -29,7 +29,7 @@ q = Queue(connection=redis.Redis.from_url(redis_url))
 # Configuration
 CORE_API_KEY = os.getenv('CORE_API_KEY')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4.5-preview')
 
 if not CORE_API_KEY:
     logger.error("CORE_API_KEY is missing!")
