@@ -1,22 +1,36 @@
 # Follow-up Agent
 
-A standalone, resellable SMS automation bot designed for real estate lead follow-up.
-Built with Python (Flask), Twilio, and Redis for scheduling.
+SMS automation bot for real estate lead follow-up. Built with Python (Flask), Twilio, Redis, and OpenAI.
 
 ## Features
-- **Instant Response**: Auto-replies to inbound leads.
-- **Drip Campaigns**: Schedules follow-up messages (10 mins, 24 hours, etc.).
-- **Human Handoff**: Detects keywords (e.g., "call me") and alerts a human.
-- **Resellable**: Configurable via `.env` file (white-label ready).
-- **Stateless/Stateful**: Uses Redis for conversation state and scheduling.
+- Auto-replies to inbound SMS with AI-generated responses
+- Scheduled follow-up campaigns (30min, 24h, 48h)
+- Calendar integration via Make.com webhooks
+- Voice call logging (optional Vapi integration)
+- CRM auto-enrichment (extracts name/email from conversations)
 
-## Architecture
-- `app.py`: Main Flask application handling Twilio webhooks.
-- `worker.py`: Background worker for sending scheduled follow-ups.
-- `config.py`: Configuration loader.
-- `utils.py`: Helper functions (logging, validation).
+## Quick Start
 
-## Setup
-1. `pip install -r requirements.txt`
-2. `cp .env.example .env` (Fill in Twilio credentials)
-3. `docker-compose up -d` (Runs Flask + Redis + Worker)
+```bash
+cp .env.example .env
+# Edit .env with your credentials
+docker-compose up -d --build
+```
+
+## Documentation
+
+- `docs/README_DEVELOPER.md` - Architecture & development guide
+- `docs/AGENTS.md` - Code style & testing for AI agents
+- `docs/DEPLOYMENT_SOP.md` - Production deployment checklist
+- `docs/MAKE_SETUP.md` - Make.com webhook configuration
+- `docs/API.md` - Quick API reference
+- `docs/API Usage Guide_v2.md` - Detailed API documentation
+
+## Configuration
+
+See `.env.example` for all available options. Critical variables:
+- `MAKE_WEBHOOK_URL` - **Required per client** (calendar integration)
+- `CORE_API_URL` - Sarah DB API endpoint
+- `CORE_API_KEY` - API authentication
+- `TWILIO_*` - SMS integration
+- `OPENAI_API_KEY` - AI responses
