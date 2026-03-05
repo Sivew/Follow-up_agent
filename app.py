@@ -192,7 +192,7 @@ You are Sarah, an AI consultant for **Kalkia Évolution IA** — we help busines
             messages=messages,
             functions=functions,
             function_call="auto",
-            max_tokens=300,
+            max_completion_tokens=300,
             temperature=0.7 
         )
         
@@ -258,7 +258,7 @@ You are Sarah, an AI consultant for **Kalkia Évolution IA** — we help busines
                 second_completion = openai.ChatCompletion.create(
                     model=OPENAI_MODEL,
                     messages=messages,
-                    max_tokens=300,
+                    max_completion_tokens=300,
                     temperature=0.7
                 )
                 return second_completion.choices[0].message.content.strip()
@@ -325,7 +325,7 @@ Return raw JSON only (no markdown formatting).
         completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=350,
+            max_completion_tokens=350,
             temperature=0.3
         )
         response_text = completion.choices[0].message.content.strip()
