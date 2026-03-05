@@ -190,8 +190,8 @@ You are Sarah, an AI consultant for **Kalkia Évolution IA** — we help busines
         completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=messages,
-            functions=functions,
-            function_call="auto",
+            tools=[{"type": "function", "function": functions[0]}],
+            tool_choice="auto",
             max_completion_tokens=300,
             temperature=0.7 
         )
@@ -199,10 +199,11 @@ You are Sarah, an AI consultant for **Kalkia Évolution IA** — we help busines
         response_message = completion.choices[0].message
         
         # Check if the model wants to call the webhook function
-        if response_message.get("function_call"):
-            func_name = response_message["function_call"]["name"]
+        if hasattr(response_message, "tool_calls") and response_message.tool_calls:
+            tool_call = response_message.tool_calls[0]
+            func_name = tool_call.function.name
             try:
-                func_args = json.loads(response_message["function_call"]["arguments"])
+                func_args = json.loads(tool_call.function.arguments)
             except:
                 func_args = {}
                 
@@ -249,7 +250,8 @@ You are Sarah, an AI consultant for **Kalkia Évolution IA** — we help busines
                 # Send the webhook's response back to the LLM
                 messages.append(response_message)
                 messages.append({
-                    "role": "function",
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
                     "name": func_name,
                     "content": function_result
                 })
