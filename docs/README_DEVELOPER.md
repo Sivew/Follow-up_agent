@@ -122,3 +122,4 @@ Checks unresponsive leads, sends LLM-generated follow-ups per `followup_strategy
 ### 2. State Machine via `intent` Field
 **Context:** The Core DB schema does NOT have native fields for `automation_status` or `followup_count`.
 **The Hack:** We utilize the **`intent`** field in the conversation context to track the automation state (`WAITING_FOR_ANSWER` -> `FOLLOWUP_1` -> `NURTURE`).
+\n\n## 🧭 Core Architectural Truths\nBefore modifying bridging actions, Make webhooks, or cron workers, ALL developers MUST read `docs/ARCHITECTURE_DECISION_RECORD.md`. It defines the strict separation between the Automation State Machine and Conversational Intent.
