@@ -203,19 +203,20 @@ Use calendar functions ONLY when they want to schedule a future appointment (not
         completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=messages,
-            functions=functions,
-            function_call="auto",
-            max_tokens=300,
+            tools=[{"type": "function", "function": functions[0]}],
+            tool_choice="auto",
+            max_completion_tokens=300,
             temperature=0.7 
         )
         
         response_message = completion.choices[0].message
         
         # Check if the model wants to call the webhook function
-        if response_message.get("function_call"):
-            func_name = response_message["function_call"]["name"]
+        if hasattr(response_message, "tool_calls") and response_message.tool_calls:
+            tool_call = response_message.tool_calls[0]
+            func_name = tool_call.function.name
             try:
-                func_args = json.loads(response_message["function_call"]["arguments"])
+                func_args = json.loads(tool_call.function.arguments)
             except:
                 func_args = {}
                 
@@ -262,7 +263,8 @@ Use calendar functions ONLY when they want to schedule a future appointment (not
                 # Send the webhook's response back to the LLM
                 messages.append(response_message)
                 messages.append({
-                    "role": "function",
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
                     "name": func_name,
                     "content": function_result
                 })
@@ -271,7 +273,7 @@ Use calendar functions ONLY when they want to schedule a future appointment (not
                 second_completion = openai.ChatCompletion.create(
                     model=OPENAI_MODEL,
                     messages=messages,
-                    max_tokens=300,
+                    max_completion_tokens=300,
                     temperature=0.7
                 )
                 return second_completion.choices[0].message.content.strip()
@@ -342,7 +344,7 @@ Return raw JSON only (no markdown formatting).
         completion = openai.ChatCompletion.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=350,
+            max_completion_tokens=350,
             temperature=0.3
         )
         response_text = completion.choices[0].message.content.strip()
