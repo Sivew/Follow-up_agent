@@ -11,6 +11,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 from utils import log_event
 from dotenv import load_dotenv
 from sarah_db_client import SarahDBClient
+from vapi_caller import trigger_vapi_call, is_business_hours, next_business_window
 
 # Initialize basic logger
 logging.basicConfig(level=logging.INFO)
@@ -117,7 +118,9 @@ You are Sarah, an AI consultant for **Kalkia Évolution IA** — we help busines
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - Your PRIMARY goal is to get permission to call them immediately
 - Ask: "Can I call you right now?" or "Want a quick call to discuss this?"
-- If YES → Confirm: "Great! I'll call you in 1 minute." (DO NOT use any functions)
+- If YES (during business hours 9AM-8PM ET) → Confirm: "Great! I'll call you in 1 minute."
+- If YES (after business hours) → Suggest next business window: "It's a bit late right now — how about I call you [tomorrow at 9 AM]? That way I can give you my full attention."
+  - If they INSIST ("no, call me now", "I don't mind", "just call") → Confirm: "You got it! Calling you now."
 - If NO/LATER → Ask when: "No problem! When's a good time for me to call?"
 - DO NOT check calendar for immediate calls — just get permission and confirm
 
@@ -336,6 +339,14 @@ Analyze this conversation exchange and update the CRM records.
    - They asked about pricing or timeline
    - They agreed when Sarah offered a call
 
+9. "call_timing": When do they want the call? Only set if booking_requested is true:
+   - "now" = they want an immediate call ("call me", "yes", "sure" in response to call offer)
+   - "scheduled" = they specified a future time ("tomorrow at 2pm", "next week")
+   - "persistent" = they are INSISTING on an immediate call after being told it is after hours
+   - null = no call requested
+
+10. "scheduled_call_time": If call_timing is "scheduled", extract the requested date/time as a string (e.g., "tomorrow at 2pm", "Monday morning"). null otherwise.
+
 Return raw JSON only (no markdown formatting).
     """
 
@@ -520,29 +531,77 @@ def handle_incoming_sms():
                 print(f"DEBUG: Failed to update customer profile: {ce}")
         
         # 5. Voice Call Trigger Logic (VAPI Integration)
-        # TODO: Implement VAPI call trigger when conditions are met
-        # Trigger conditions:
-        # - call_recommended == True (AI detected strong engagement)
-        # - interest_level == "hot" (mentions timeline, pricing, ready to talk)
-        # - User agrees to a call offer in the conversation
-        #
-        # Implementation steps:
-        # 1. Add VAPI_WEBHOOK_URL to .env file
-        # 2. Create a trigger_vapi_call() helper function that:
-        #    - Calls VAPI API to initiate outbound call
-        #    - Passes customer context (name, summary, product_interest)
-        # 3. Uncomment the logic below:
-        #
-        # if call_recommended and interest_level in ["warm", "hot"]:
-        #     # Check if we've already offered a call in this conversation
-        #     already_offered = any("call you" in msg.get("message_body", "").lower() 
-        #                          for msg in history[-3:] if msg.get("direction") == "outbound")
-        #     
-        #     if not already_offered:
-        #         # VAPI will be triggered when user responds "yes" to Sarah's call offer
-        #         # Sarah's prompt already includes language to offer calls proactively
-        #         print(f"DEBUG: Call recommended for {ext_name or 'customer'} - Sarah should offer call")
-                
+        call_timing = state_updates.get("call_timing")
+        scheduled_call_time = state_updates.get("scheduled_call_time")
+
+        customer_phone = context_data.get("customer", {}).get("phone_normalized") or context_data.get("customer", {}).get("phone")
+        customer_name_for_call = ext_name or context_data.get("customer", {}).get("name") or "there"
+        call_summary = state_updates.get("summary", context_data.get("summary", ""))
+        call_product = state_updates.get("product_interest") or context_data.get("product_interest", "AI solutions")
+
+        if is_booking_req and call_timing:
+
+            if call_timing == "now":
+                if is_business_hours():
+                    # IMMEDIATE CALL - during business hours
+                    print(f"VAPI: Triggering immediate call to {customer_phone}")
+                    vapi_result = trigger_vapi_call(
+                        phone=customer_phone,
+                        customer_name=customer_name_for_call,
+                        summary=call_summary,
+                        product_interest=call_product,
+                        interest_level=interest_level
+                    )
+                    if vapi_result.get("success"):
+                        new_intent = "HOT_LEAD"
+                        db_client.update_conversation(
+                            context_id=context_id,
+                            intent="HOT_LEAD",
+                            last_agent_action=f"VAPI call triggered: {vapi_result.get('call_id')}"
+                        )
+                    else:
+                        print(f"VAPI: Call failed - {vapi_result.get('error')}")
+                else:
+                    # AFTER HOURS - suggest next business window
+                    nw = next_business_window()
+                    print(f"VAPI: After hours. Suggesting: {nw['friendly']}")
+                    new_intent = "CALL_OFFERED_AFTER_HOURS"
+                    db_client.update_conversation(
+                        context_id=context_id,
+                        intent="CALL_OFFERED_AFTER_HOURS",
+                        summary=f"{call_summary} [CALL PENDING] Suggested {nw['friendly']}.",
+                        last_agent_action=f"Suggested call at {nw['friendly']} (after hours)"
+                    )
+
+            elif call_timing == "persistent":
+                # Lead INSISTED on call NOW despite after-hours
+                print(f"VAPI: Lead insisted on immediate call (after hours). Triggering.")
+                vapi_result = trigger_vapi_call(
+                    phone=customer_phone,
+                    customer_name=customer_name_for_call,
+                    summary=call_summary,
+                    product_interest=call_product,
+                    interest_level="hot"
+                )
+                if vapi_result.get("success"):
+                    new_intent = "HOT_LEAD"
+                    db_client.update_conversation(
+                        context_id=context_id,
+                        intent="HOT_LEAD",
+                        last_agent_action=f"VAPI call triggered (persistent): {vapi_result.get('call_id')}"
+                    )
+
+            elif call_timing == "scheduled" and scheduled_call_time:
+                # Lead wants a call at a specific future time
+                print(f"VAPI: Call scheduled for: {scheduled_call_time}")
+                new_intent = "CALL_SCHEDULED"
+                db_client.update_conversation(
+                    context_id=context_id,
+                    intent="CALL_SCHEDULED",
+                    summary=f"{call_summary} [CALL SCHEDULED] {scheduled_call_time}",
+                    last_agent_action=f"Call scheduled for {scheduled_call_time}"
+                )
+
     except Exception as e:
         print(f"DEBUG: Failed to update conversation context: {e}")
 

@@ -4,3 +4,10 @@ __pycache__/
 .env
 .DS_Store
 deploy.sh
+
+# Backup files
+*.bak
+*.bak.*
+
+# Runtime data
+sms_retry_counts.json

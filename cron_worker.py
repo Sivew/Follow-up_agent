@@ -11,6 +11,37 @@ import requests
 # Load environment variables
 load_dotenv()
 
+# Retry tracking
+MAX_SMS_RETRIES = 3
+RETRY_FILE = os.path.join(os.path.dirname(__file__), 'sms_retry_counts.json')
+
+def load_retry_counts():
+    try:
+        with open(RETRY_FILE, 'r') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+def save_retry_counts(counts):
+    with open(RETRY_FILE, 'w') as f:
+        json.dump(counts, f, indent=2)
+
+def get_retry_count(context_id):
+    counts = load_retry_counts()
+    return counts.get(context_id, 0)
+
+def increment_retry(context_id):
+    counts = load_retry_counts()
+    counts[context_id] = counts.get(context_id, 0) + 1
+    save_retry_counts(counts)
+    return counts[context_id]
+
+def clear_retry(context_id):
+    counts = load_retry_counts()
+    if context_id in counts:
+        del counts[context_id]
+        save_retry_counts(counts)
+
 # Configuration
 API_KEY = os.getenv("CORE_API_KEY")
 TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
@@ -148,11 +179,15 @@ def process_conversations():
 
         # Get Strategy Rules
         rule = STRATEGY[intent]
-        wait_minutes = rule.get("wait_minutes", 0)
+        wait_minutes = rule.get("wait_minutes")
         next_intent = rule.get("next_intent")
         instruction = rule.get("instruction")
 
-        if mins_since_last >= wait_minutes:
+        # Skip states that don't need auto-follow-ups
+        if wait_minutes is None:
+            continue
+
+        if mins_since_last >= float(wait_minutes):
             print(f"⚡ Triggering rule {intent} -> {next_intent} for {context_id}")
             
             if instruction:
@@ -183,6 +218,21 @@ def process_conversations():
                     updated_summary = f"{current_summary}\n\n[System Update] Sarah auto-sent follow-up: {msg_body[:40]}..."
                     
                     db_client.update_conversation(context_id=context_id, intent=next_intent, summary=updated_summary)
+                    clear_retry(context_id)
+                else:
+                    # SMS failed - track retries
+                    retries = increment_retry(context_id)
+                    if retries >= MAX_SMS_RETRIES:
+                        print(f"🚫 Max retries ({MAX_SMS_RETRIES}) reached for {context_id}. Moving to {next_intent} (SMS_FAILED).")
+                        db_client.update_conversation(
+                            context_id=context_id,
+                            intent=next_intent,
+                            summary=f"[SMS FAILED after {retries} attempts] Moved to {next_intent} - invalid or unreachable phone.",
+                            last_agent_action=f"SMS delivery failed after {retries} retries"
+                        )
+                        clear_retry(context_id)
+                    else:
+                        print(f"⚠️ SMS failed for {context_id} (attempt {retries}/{MAX_SMS_RETRIES}). Will retry next cycle.")
             else:
                 # No template means it's a silent phase transition (e.g. moving to NURTURE)
                 print(f"💤 Moving {context_id} to {next_intent} (Silent)")
